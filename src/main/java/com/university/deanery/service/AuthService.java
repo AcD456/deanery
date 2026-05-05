@@ -6,7 +6,6 @@ import com.university.deanery.repository.SecurityQuestionRepository;
 import com.university.deanery.repository.UserRepository;
 import com.university.deanery.security.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,55 +19,49 @@ public class AuthService {
     @Autowired
     private SecurityQuestionRepository securityQuestionRepository;
 
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-
+    // 1. Проверка логина и пароля
     public User authenticate(String login, String password) {
         User user = userRepository.findByLogin(login)
-                .orElseThrow(() -> new RuntimeException("Пользователь не найден: " + login));
+                .orElseThrow(() -> new RuntimeException("Неверный логин или пароль"));
 
-        // Простое сравнение без BCrypt
         if (!user.getPassword().equals(password)) {
-            throw new RuntimeException("Неверный пароль");
+            throw new RuntimeException("Неверный логин или пароль");
         }
 
         return user;
     }
 
-    // получить вопрос
+    // 2. Получить вопрос (если есть)
     public String getSecurityQuestion(Integer userId) {
         List<SecurityQuestion> questions = securityQuestionRepository.findByUserId(userId);
-
         if (questions.isEmpty()) {
-            throw new RuntimeException("Нет секретного вопроса");
+            return null;
         }
-
         return questions.get(0).getQuestion();
     }
 
-    // проверка ответа
+    // 3. Проверка ответа
     public User verifySecurityAnswer(Integer userId, String answer) {
         List<SecurityQuestion> questions = securityQuestionRepository.findByUserId(userId);
 
         if (questions.isEmpty()) {
-            throw new RuntimeException("Нет секретного вопроса");
+            return userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
         }
 
         SecurityQuestion question = questions.get(0);
-
-        // Временное прямое сравнение (без BCrypt)
         if (!question.getAnswerHash().equals(answer)) {
-            throw new RuntimeException("Неверный ответ");
+            throw new RuntimeException("Неверный ответ на секретный вопрос");
         }
 
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
     }
 
-    // получение пользователя из JWT
+    // 4. Получение пользователя из JWT
     public User getUserFromToken(String token, JwtService jwtService) {
         String cleanToken = token.replace("Bearer ", "");
         Integer userId = jwtService.extractUserId(cleanToken);
-
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }

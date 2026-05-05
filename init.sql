@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS security_questions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
--- Вставка тестовых данных (без ON CONFLICT)
+-- Вставка тестовых данных
 INSERT INTO users (login, password, role) VALUES
                                               ('ivanov_app', 'pass1', 'APPLICANT'),
                                               ('petrov_stud', 'pass2', 'STUDENT'),
@@ -71,5 +71,6 @@ INSERT INTO applications (applicant_id, program_id, status) VALUES
     (1, 101, 'PENDING');
 
 INSERT INTO security_questions (user_id, question, answer_hash) VALUES
+                                                                    (2, 'Ваш любимый цвет?', 'red'),
                                                                     (3, 'Ваша любимая книга?', 'java'),
-                                                                    (2, 'Ваш любимый цвет?', 'red');
+                                                                    (4, 'Ваше любимое блюдо?', 'pasta');

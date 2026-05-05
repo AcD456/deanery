@@ -236,3 +236,13 @@ pre {
     background: #e8f8f0;
     border-radius: 6px;
 }
+
+.info {
+    color: #f39c12;
+    margin: 10px 0;
+    padding: 10px;
+    background: #fef9e7;
+    border-radius: 6px;
+    border-left: 4px solid #f39c12;
+    text-align: center;
+}
