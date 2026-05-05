@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Деканат - Виртуальный деканат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <h2>🎓 Виртуальный деканат - Деканат</h2>
+        <div class="user-info">
+            <span id="user-login"></span>
+            <span class="role-badge" id="user-role"></span>
+            <button class="btn-logout" onclick="logout()">Выйти</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <div class="section">
+            <h3>📋 Заявления на поступление</h3>
+            <div id="dean-error" class="error hidden"></div>
+            <div id="dean-success" class="success hidden"></div>
+            <table id="applications-table">
+                <thead><tr><th>ID</th><th>Абитуриент</th><th>Программа</th><th>Статус</th><th>Действие</th></tr></thead>
+                <tbody id="applications-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section">
+            <h3>👥 Управление студентами</h3>
+            <table id="students-table">
+                <thead><tr><th>ID</th><th>ФИО</th><th>Группа</th><th>Статус</th><th>Действия</th></tr></thead>
+                <tbody id="students-list"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

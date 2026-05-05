@@ -4,22 +4,29 @@ services:
     container_name: deanery-postgres
     environment:
       POSTGRES_DB: deanery
-      POSTGRES_USER: dean
-      POSTGRES_PASSWORD: 1234
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:Z
     networks:
       - deanery-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d deanery"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     build: .
     container_name: deanery-app
-    depends_on:
-      - postgres
     environment:
       SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
     networks:
@@ -30,4 +37,3 @@ volumes:
 
 networks:
   deanery-network:
-    driver: bridge

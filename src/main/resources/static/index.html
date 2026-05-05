@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Виртуальный деканат - Вход</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="login-container">
+    <div class="card">
+        <h2>🎓 Виртуальный деканат</h2>
+        <div id="login-error" class="error hidden"></div>
+        <div class="form-group">
+            <input type="text" id="login" placeholder="Логин" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <input type="password" id="password" placeholder="Пароль">
+        </div>
+        <button class="btn btn-primary" onclick="login()" style="width:100%">Войти</button>
+
+        <div id="security-section" class="hidden" style="margin-top:20px">
+            <hr style="margin: 20px 0">
+            <h3 id="question" style="margin-bottom: 10px;"></h3>
+            <div class="form-group">
+                <input type="text" id="answer" placeholder="Ваш ответ">
+            </div>
+            <button class="btn btn-success" onclick="verify()" style="width:100%">Подтвердить</button>
+        </div>
+    </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

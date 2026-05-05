@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Абитуриент - Виртуальный деканат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <h2>🎓 Виртуальный деканат - Абитуриент</h2>
+        <div class="user-info">
+            <span id="user-login"></span>
+            <span class="role-badge" id="user-role"></span>
+            <button class="btn-logout" onclick="logout()">Выйти</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <div class="section">
+            <h3>📝 Подать заявление на поступление</h3>
+            <div id="apply-error" class="error hidden"></div>
+            <div id="apply-success" class="success hidden"></div>
+            <div class="form-group">
+                <label>Программа обучения:</label>
+                <select id="programId">
+                    <option value="101">Прикладная информатика</option>
+                    <option value="102">Бизнес-информатика</option>
+                    <option value="103">Программная инженерия</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="submitApplication()">Подать заявление</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section">
+            <h3>📋 Мои заявления</h3>
+            <table id="applications-table">
+                <thead>
+                <tr><th>ID</th><th>Программа</th><th>Статус</th></tr>
+                </thead>
+                <tbody id="applications-list"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

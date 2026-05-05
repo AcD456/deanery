@@ -1,6 +1,7 @@
 package com.university.deanery.controller;
 
 import com.university.deanery.model.User;
+import com.university.deanery.security.JwtService;
 import com.university.deanery.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -15,34 +16,44 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
-    // Этап 1: Логин (проверка логина и пароля)
+    @Autowired
+    private JwtService jwtService;
+
+    // ЭТАП 1: логин + пароль
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestParam String login, @RequestParam String password) {
+    public Map<String, Object> login(@RequestParam String login,
+                                     @RequestParam String password) {
+
         User user = authService.authenticate(login, password);
 
         Map<String, Object> response = new HashMap<>();
         response.put("userId", user.getId());
-        response.put("login", user.getLogin());
-        response.put("role", user.getRole());
-        response.put("message", "Пароль верен, требуется ответ на секретный вопрос");
         response.put("requiresSecurityQuestion", true);
 
         return response;
     }
 
-    // Этап 2: Получить секретный вопрос (после успешного логина)
+    // ЭТАП 2: получить вопрос
     @GetMapping("/security-question")
     public Map<String, String> getSecurityQuestion(@RequestParam Integer userId) {
         String question = authService.getSecurityQuestion(userId);
+
         Map<String, String> response = new HashMap<>();
         response.put("question", question);
         response.put("userId", String.valueOf(userId));
+
         return response;
     }
 
-    // Этап 3: Ответ на секретный вопрос (завершение аутентификации)
+    // ЭТАП 3: ответ → ВЫДАЁМ JWT
     @PostMapping("/verify-security")
-    public User verifySecurity(@RequestParam Integer userId, @RequestParam String answer) {
-        return authService.verifySecurityAnswer(userId, answer);
+    public Map<String, String> verifySecurity(@RequestParam Integer userId,
+                                              @RequestParam String answer) {
+
+        User user = authService.verifySecurityAnswer(userId, answer);
+
+        String token = jwtService.generateToken(user.getId(), user.getRole());
+
+        return Map.of("token", token);
     }
 }

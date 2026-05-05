@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Студент - Виртуальный деканат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <h2>🎓 Виртуальный деканат - Студент</h2>
+        <div class="user-info">
+            <span id="user-login"></span>
+            <span class="role-badge" id="user-role"></span>
+            <button class="btn-logout" onclick="logout()">Выйти</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <div class="section">
+            <h3>👤 Мой профиль</h3>
+            <button class="btn btn-primary" onclick="loadProfile()">Загрузить</button>
+            <div id="profile"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section">
+            <h3>👥 Студенты моей группы</h3>
+            <button class="btn btn-primary" onclick="loadGroup()">Загрузить</button>
+            <div id="group-students"></div>
+        </div>
+    </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

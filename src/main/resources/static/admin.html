@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Администратор - Виртуальный деканат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <h2>🎓 Виртуальный деканат - Администратор</h2>
+        <div class="user-info">
+            <span id="user-login"></span>
+            <span class="role-badge" id="user-role"></span>
+            <button class="btn-logout" onclick="logout()">Выйти</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <div class="section">
+            <h3>👥 Управление пользователями</h3>
+            <div id="admin-error" class="error hidden"></div>
+            <div id="admin-success" class="success hidden"></div>
+            <table id="users-table">
+                <thead>
+                <tr><th>ID</th><th>Логин</th><th>Роль</th><th>Действие</th></tr>
+                </thead>
+                <tbody id="users-list"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
