@@ -7,6 +7,7 @@ import com.university.deanery.security.AclService;
 import com.university.deanery.security.JwtService;
 import com.university.deanery.service.AuthService;
 import com.university.deanery.service.DeanService;
+import com.university.deanery.service.JournalService;
 import com.university.deanery.repository.ApplicationRepository;
 import com.university.deanery.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,12 +55,20 @@ public class DeanController {
         return studentRepository.findAll();
     }
 
+    @Autowired
+    private JournalService journalService;
+
     @PostMapping("/approve-application/{applicationId}")
     public String approveApplication(@PathVariable Integer applicationId,
                                      @RequestHeader("Authorization") String token) {
         User user = getUser(token);
         aclService.checkAccess(user, "applications", "APPROVE");
+
         deanService.approveApplication(applicationId, user.getId());
+
+        // Логируем действие
+        journalService.logSimple(user.getId(), "APPROVE_APPLICATION", "Application", applicationId);
+
         return "Заявление одобрено";
     }
 
@@ -68,7 +77,12 @@ public class DeanController {
                                @RequestHeader("Authorization") String token) {
         User user = getUser(token);
         aclService.checkAccess(user, "students", "EXPEL");
+
         deanService.expelStudent(studentId, user.getId());
+
+        // Логируем действие
+        journalService.logSimple(user.getId(), "EXPEL_STUDENT", "Student", studentId);
+
         return "Студент отчислен";
     }
 
@@ -78,7 +92,12 @@ public class DeanController {
                                   @RequestHeader("Authorization") String token) {
         User user = getUser(token);
         aclService.checkAccess(user, "students", "TRANSFER");
+
         deanService.transferStudent(studentId, groupId, user.getId());
+
+        // Логируем действие
+        journalService.logSimple(user.getId(), "TRANSFER_STUDENT", "Student", studentId);
+
         return "Студент переведён";
     }
 }

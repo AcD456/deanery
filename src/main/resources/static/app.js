@@ -7,16 +7,7 @@ let currentLogin = null;
 // ОБЩИЕ ФУНКЦИИ
 // =======================
 
-function showError(elementId, message) {
-    const el = document.getElementById(elementId);
-    if (el) {
-        el.innerText = message;
-        el.classList.remove('hidden');
-        setTimeout(() => el.classList.add('hidden'), 5000);
-    }
-}
-
-function showInfo(elementId, message, isError = false) {
+function showMessage(elementId, message, isError = false) {
     const el = document.getElementById(elementId);
     if (el) {
         el.innerText = message;
@@ -30,10 +21,11 @@ function showInfo(elementId, message, isError = false) {
             el.style.borderLeftColor = '#f39c12';
             el.style.color = '#f39c12';
         }
+        setTimeout(() => el.classList.add('hidden'), 5000);
     }
 }
 
-function hideInfo(elementId) {
+function hideMessage(elementId) {
     const el = document.getElementById(elementId);
     if (el) {
         el.classList.add('hidden');
@@ -49,41 +41,25 @@ async function login() {
     const passwordVal = document.getElementById('password').value;
     currentLogin = loginVal;
 
-    // Скрыть старые сообщения
-    hideInfo('attempts-info');
-    hideInfo('login-error');
+    // Скрываем старые сообщения
+    hideMessage('attempts-info');
 
     try {
         const response = await fetch(`/auth/login?login=${loginVal}&password=${passwordVal}`, { method: 'POST' });
 
         if (!response.ok) {
             let errorMessage = 'Неверный логин или пароль';
-            let remainingInfo = '';
 
             try {
                 const errorData = await response.json();
                 errorMessage = errorData.message || errorMessage;
-
-                // Извлекаем информацию о попытках из сообщения
-                const attemptsMatch = errorMessage.match(/Осталось попыток:\s*(\d+)/i);
-                if (attemptsMatch) {
-                    remainingInfo = ` ⚠️ Осталось попыток: ${attemptsMatch[1]}`;
-                }
-
-                const blockedMatch = errorMessage.match(/заблокирован/i);
-                if (blockedMatch) {
-                    showInfo('attempts-info', '🔒 ' + errorMessage, true);
-                } else {
-                    showInfo('attempts-info', '❌ ' + errorMessage + remainingInfo, true);
-                }
-
             } catch(e) {
                 const text = await response.text();
                 errorMessage = text || errorMessage;
-                showInfo('attempts-info', '❌ ' + errorMessage, true);
             }
 
-            showError('login-error', errorMessage);
+            // Показываем ОДНО сообщение
+            showMessage('attempts-info', '❌ ' + errorMessage, true);
             return;
         }
 
@@ -121,13 +97,11 @@ async function login() {
             } else {
                 document.getElementById('question').innerText = qData.question;
                 document.getElementById('security-section').classList.remove('hidden');
-                hideInfo('attempts-info');
-                document.getElementById('login-error').classList.add('hidden');
+                hideMessage('attempts-info');
             }
         }
     } catch (err) {
-        showInfo('attempts-info', '❌ Ошибка соединения с сервером', true);
-        showError('login-error', err.message);
+        showMessage('attempts-info', '❌ Ошибка соединения с сервером', true);
     }
 }
 
@@ -155,8 +129,7 @@ async function verify() {
                 const text = await res.text();
                 errorMessage = text || errorMessage;
             }
-            showInfo('attempts-info', '❌ ' + errorMessage, true);
-            showError('login-error', errorMessage);
+            showMessage('attempts-info', '❌ ' + errorMessage, true);
             return;
         }
 
@@ -169,8 +142,7 @@ async function verify() {
 
         redirectByRole(payload.role);
     } catch (err) {
-        showInfo('attempts-info', '❌ Ошибка: ' + err.message, true);
-        showError('login-error', err.message);
+        showMessage('attempts-info', '❌ Ошибка: ' + err.message, true);
     }
 }
 
@@ -187,22 +159,58 @@ async function loadProfile() {
     try {
         const res = await fetch('/student/my-profile', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
         const data = await res.json();
-        document.getElementById('profile').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        let html = `
+            <div class="profile-card">
+                <p><strong>ФИО:</strong> ${data.fullName || '—'}</p>
+                <p><strong>Группа:</strong> ${data.groupId || '—'}</p>
+                <p><strong>Статус:</strong> <span class="badge ${data.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${data.status || '—'}</span></p>
+            </div>
+        `;
+        document.getElementById('profile').innerHTML = html;
     } catch (err) {
-        alert('Ошибка: ' + err.message);
+        document.getElementById('profile').innerHTML = '<div class="error">Ошибка загрузки профиля</div>';
     }
 }
 
 async function loadGroup() {
     try {
         const res = await fetch('/student/group/1', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-        const data = await res.json();
-        let html = '<table> hilab<th>ФИО</th><th>Статус</th></tr>';
-        data.forEach(s => html += `<tr><td>${s.fullName}</td><td>${s.status}</td></tr>`);
-        html += '</table>';
+        const students = await res.json();
+
+        if (students.length === 0) {
+            document.getElementById('group-students').innerHTML = '<p>Нет студентов в группе</p>';
+            return;
+        }
+
+        let html = '<table class="data-table"><thead><tr><th>ФИО</th><th>Статус</th></tr></thead><tbody>';
+        students.forEach(s => {
+            html += `<tr><td>${s.fullName || '—'}</td><td><span class="badge ${s.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${s.status || '—'}</span></td></tr>`;
+        });
+        html += '</tbody></table>';
         document.getElementById('group-students').innerHTML = html;
     } catch (err) {
-        alert('Ошибка: ' + err.message);
+        document.getElementById('group-students').innerHTML = '<div class="error">Ошибка загрузки группы</div>';
+    }
+}
+
+async function loadCourses() {
+    try {
+        const res = await fetch('/student/my-courses', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const courses = await res.json();
+
+        if (!courses || courses.length === 0) {
+            document.getElementById('my-courses').innerHTML = '<p>Нет назначенных дисциплин</p>';
+            return;
+        }
+
+        let html = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th><th>Преподаватель</th></tr></thead><tbody>';
+        courses.forEach(c => {
+            html += `<tr><td>${c.name || '—'}</td><td>${c.hours || '—'}</td><td>${c.semester || '—'}</td><td>${c.teacherName || '—'}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('my-courses').innerHTML = html;
+    } catch (err) {
+        document.getElementById('my-courses').innerHTML = '<div class="error">Ошибка загрузки дисциплин</div>';
     }
 }
 
@@ -213,45 +221,34 @@ async function loadGroup() {
 async function loadDeanDashboard() {
     const token = localStorage.getItem('token');
 
-    const appsRes = await fetch('/dean/applications', { headers: { 'Authorization': 'Bearer ' + token } });
-    const applications = await appsRes.json();
-    let appsHtml = '';
-    applications.forEach(app => {
-        appsHtml += `<tr>
-                            <td>${app.id}</td>
-                            <td>${app.applicantId}</td>
-                            <td>${app.programId}</td>
-                            <td>${app.status}</td>
-                            <td><button class="btn btn-success btn-sm" onclick="approveApp(${app.id})">Одобрить</button></td>
-                        </tr>`;
-    });
-    document.getElementById('applications-list').innerHTML = appsHtml;
+    try {
+        const appsRes = await fetch('/dean/applications', { headers: { 'Authorization': 'Bearer ' + token } });
+        const applications = await appsRes.json();
+        let appsHtml = '';
+        applications.forEach(app => {
+            appsHtml += `<tr><td>${app.id}</td><td>${app.applicantId}</td><td>${app.programId}</td><td>${app.status}</td><td><button class="btn btn-success btn-sm" onclick="approveApp(${app.id})">Одобрить</button></td></tr>`;
+        });
+        document.getElementById('applications-list').innerHTML = appsHtml;
 
-    const studentsRes = await fetch('/dean/students', { headers: { 'Authorization': 'Bearer ' + token } });
-    const students = await studentsRes.json();
-    let studentsHtml = '';
-    students.forEach(s => {
-        studentsHtml += `<tr>
-                            <td>${s.id}</td>
-                            <td>${s.fullName}</td>
-                            <td><input type="number" id="group-${s.id}" value="${s.groupId}" style="width:60px"></td>
-                            <td>${s.status}</td>
-                            <td>
-                                <button class="btn btn-warning btn-sm" onclick="transferStudent(${s.id})">Перевести</button>
-                                <button class="btn btn-danger btn-sm" onclick="expelStudent(${s.id})">Отчислить</button>
-                            </td>
-                        </tr>`;
-    });
-    document.getElementById('students-list').innerHTML = studentsHtml;
+        const studentsRes = await fetch('/dean/students', { headers: { 'Authorization': 'Bearer ' + token } });
+        const students = await studentsRes.json();
+        let studentsHtml = '';
+        students.forEach(s => {
+            studentsHtml += `<tr><td>${s.id}</td><td>${s.fullName}</td><td><input type="number" id="group-${s.id}" value="${s.groupId}" style="width:60px"></td><td>${s.status}</td><td><button class="btn btn-warning btn-sm" onclick="transferStudent(${s.id})">Перевести</button><button class="btn btn-danger btn-sm" onclick="expelStudent(${s.id})">Отчислить</button></td></tr>`;
+        });
+        document.getElementById('students-list').innerHTML = studentsHtml;
+    } catch (err) {
+        showMessage('dean-error', err.message, true);
+    }
 }
 
 async function approveApp(appId) {
     try {
         await fetch(`/dean/approve-application/${appId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-        showSuccess('dean-success', 'Заявление одобрено');
+        showMessage('dean-success', 'Заявление одобрено', false);
         loadDeanDashboard();
     } catch (err) {
-        showError('dean-error', err.message);
+        showMessage('dean-error', err.message, true);
     }
 }
 
@@ -259,10 +256,10 @@ async function transferStudent(studentId) {
     const groupId = document.getElementById(`group-${studentId}`).value;
     try {
         await fetch(`/dean/transfer-student/${studentId}/to-group/${groupId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-        showSuccess('dean-success', 'Студент переведён');
+        showMessage('dean-success', 'Студент переведён', false);
         loadDeanDashboard();
     } catch (err) {
-        showError('dean-error', err.message);
+        showMessage('dean-error', err.message, true);
     }
 }
 
@@ -270,19 +267,10 @@ async function expelStudent(studentId) {
     if (!confirm('Отчислить студента?')) return;
     try {
         await fetch(`/dean/expel-student/${studentId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-        showSuccess('dean-success', 'Студент отчислен');
+        showMessage('dean-success', 'Студент отчислен', false);
         loadDeanDashboard();
     } catch (err) {
-        showError('dean-error', err.message);
-    }
-}
-
-function showSuccess(elementId, message) {
-    const el = document.getElementById(elementId);
-    if (el) {
-        el.innerText = message;
-        el.classList.remove('hidden');
-        setTimeout(() => el.classList.add('hidden'), 3000);
+        showMessage('dean-error', err.message, true);
     }
 }
 
@@ -293,15 +281,15 @@ function showSuccess(elementId, message) {
 async function submitApplication() {
     const programId = document.getElementById('programId').value;
     try {
-        const res = await fetch('/applicant/submit-application', {
+        await fetch('/applicant/submit-application', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token'), 'Content-Type': 'application/json' },
             body: JSON.stringify({ programId: parseInt(programId) })
         });
-        showSuccess('apply-success', 'Заявление подано');
+        showMessage('apply-success', 'Заявление подано', false);
         loadApplications();
     } catch (err) {
-        showError('apply-error', err.message);
+        showMessage('apply-error', err.message, true);
     }
 }
 
@@ -342,11 +330,11 @@ async function loadUsers() {
                             </select>
                         </td>
                         <td><button class="btn btn-primary btn-sm" onclick="changeRole(${u.id})">Сохранить</button></td>
-                    </tr>`;
+                     </tr>`;
         });
         document.getElementById('users-list').innerHTML = html;
     } catch (err) {
-        showError('admin-error', err.message);
+        showMessage('admin-error', err.message, true);
     }
 }
 
@@ -357,10 +345,102 @@ async function changeRole(userId) {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
         });
-        showSuccess('admin-success', 'Роль изменена');
+        showMessage('admin-success', 'Роль изменена', false);
         loadUsers();
     } catch (err) {
-        showError('admin-error', err.message);
+        showMessage('admin-error', err.message, true);
+    }
+}
+
+// =======================
+// ПРЕПОДАВАТЕЛЬ
+// =======================
+
+async function loadTeacherProfile() {
+    try {
+        const res = await fetch('/teacher/my-profile', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const teacher = await res.json();
+
+        let html = `
+            <table class="info-table">
+                <tr><th>ФИО</th><td>${teacher.fullName || '—'}</td></tr>
+                <tr><th>Должность</th><td>${teacher.position || '—'}</td></tr>
+                <tr><th>Учёная степень</th><td>${teacher.academicDegree || '—'}</td></tr>
+                <tr><th>Телефон</th><td>${teacher.phone || '—'}</td></tr>
+            </table>
+        `;
+        document.getElementById('profile-info').innerHTML = html;
+    } catch (err) {
+        document.getElementById('profile-info').innerHTML = '<div class="error">Ошибка загрузки профиля</div>';
+    }
+}
+
+async function loadTeacherCourses() {
+    try {
+        const res = await fetch('/teacher/my-courses', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const courses = await res.json();
+
+        if (!courses || courses.length === 0) {
+            document.getElementById('courses-list').innerHTML = '<p>Нет назначенных дисциплин</p>';
+            return;
+        }
+
+        let html = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th></tr></thead><tbody>';
+        courses.forEach(c => {
+            html += `<tr><td>${c.name}</td><td>${c.hours}</td><td>${c.semester}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('courses-list').innerHTML = html;
+    } catch (err) {
+        document.getElementById('courses-list').innerHTML = '<div class="error">Ошибка загрузки дисциплин</div>';
+    }
+}
+
+async function loadTeacherSchedule() {
+    try {
+        const res = await fetch('/teacher/my-schedule', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const schedule = await res.json();
+
+        if (!schedule || schedule.length === 0) {
+            document.getElementById('schedule-list').innerHTML = '<p>Расписание не загружено</p>';
+            return;
+        }
+
+        let html = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Группа</th><th>День</th><th>Время</th><th>Аудитория</th></tr></thead><tbody>';
+        schedule.forEach(lesson => {
+            html += `<tr>
+                <td>${lesson.courseName || '—'}</td>
+                <td>${lesson.groupName || lesson.groupId || '—'}</td>
+                <td>${lesson.weekday || '—'}</td>
+                <td>${lesson.startTime ? lesson.startTime + ' - ' + lesson.endTime : '—'}</td>
+                <td>${lesson.classroom || '—'}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('schedule-list').innerHTML = html;
+    } catch (err) {
+        document.getElementById('schedule-list').innerHTML = '<div class="error">Ошибка загрузки расписания</div>';
+    }
+}
+
+async function loadTeacherStudents() {
+    try {
+        const res = await fetch('/teacher/my-students', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const students = await res.json();
+
+        if (!students || students.length === 0) {
+            document.getElementById('students-list').innerHTML = '<p>Нет студентов</p>';
+            return;
+        }
+
+        let html = '<table class="data-table"><thead><tr><th>ФИО</th><th>Группа</th><th>Статус</th></tr></thead><tbody>';
+        students.forEach(s => {
+            html += `<tr><td>${s.fullName}</td><td>${s.groupName || '—'}</td><td>${s.status}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('students-list').innerHTML = html;
+    } catch (err) {
+        document.getElementById('students-list').innerHTML = '<div class="error">Ошибка загрузки студентов</div>';
     }
 }
 
@@ -376,19 +456,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (path.includes('dean.html')) {
         loadDeanDashboard();
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        document.getElementById('user-login').innerText = payload.userId || 'User';
+        document.getElementById('user-role').innerText = payload.role || 'DEAN';
     } else if (path.includes('student.html')) {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        document.getElementById('user-login').innerText = payload.sub || 'User';
+        document.getElementById('user-login').innerText = payload.userId || 'User';
         document.getElementById('user-role').innerText = payload.role || 'STUDENT';
+        loadProfile();
+        loadGroup();
+        loadCourses();
     } else if (path.includes('applicant.html')) {
         loadApplications();
         const payload = JSON.parse(atob(token.split('.')[1]));
-        document.getElementById('user-login').innerText = payload.sub || 'User';
+        document.getElementById('user-login').innerText = payload.userId || 'User';
         document.getElementById('user-role').innerText = payload.role || 'APPLICANT';
     } else if (path.includes('admin.html')) {
         loadUsers();
         const payload = JSON.parse(atob(token.split('.')[1]));
-        document.getElementById('user-login').innerText = payload.sub || 'User';
+        document.getElementById('user-login').innerText = payload.userId || 'User';
         document.getElementById('user-role').innerText = payload.role || 'ADMIN';
+    } else if (path.includes('teacher.html')) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        document.getElementById('user-login').innerText = payload.userId || 'User';
+        document.getElementById('user-role').innerText = payload.role || 'TEACHER';
+        loadTeacherProfile();
+        loadTeacherCourses();
+        loadTeacherSchedule();
+        loadTeacherStudents();
     }
 });

@@ -21,19 +21,126 @@
     <div class="card">
         <div class="section">
             <h3>👤 Мой профиль</h3>
-            <button class="btn btn-primary" onclick="loadProfile()">Загрузить</button>
-            <div id="profile"></div>
+            <div id="profile" class="profile-info"></div>
         </div>
     </div>
 
     <div class="card">
         <div class="section">
             <h3>👥 Студенты моей группы</h3>
-            <button class="btn btn-primary" onclick="loadGroup()">Загрузить</button>
             <div id="group-students"></div>
         </div>
     </div>
+
+    <div class="card">
+        <div class="section">
+            <h3>📚 Мои дисциплины</h3>
+            <div id="my-courses"></div>
+        </div>
+    </div>
 </div>
-<script src="app.js"></script>
+
+<script>
+    let token = localStorage.getItem('token');
+    let currentUser = null;
+
+    if (!token) {
+        window.location.href = 'index.html';
+    }
+
+    try {
+        currentUser = JSON.parse(atob(token.split('.')[1]));
+        document.getElementById('user-login').innerText = currentUser.userId || 'User';
+        document.getElementById('user-role').innerText = currentUser.role || 'STUDENT';
+    } catch(e) {
+        console.error('Invalid token');
+    }
+
+    async function loadProfile() {
+        try {
+            const res = await fetch('/student/my-profile', { headers: { 'Authorization': 'Bearer ' + token } });
+            const student = await res.json();
+
+            let html = `
+                <table class="info-table">
+                    <tr><th>ФИО</th><td>${student.fullName || '—'}</td></tr>
+                    <tr><th>Группа</th><td>${student.groupId || '—'}</td></tr>
+                    <tr><th>Статус</th><td><span class="badge ${student.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${student.status || '—'}</span></td></tr>
+                </table>
+            `;
+            document.getElementById('profile').innerHTML = html;
+        } catch (err) {
+            document.getElementById('profile').innerHTML = '<div class="error">Ошибка загрузки профиля</div>';
+        }
+    }
+
+    async function loadGroup() {
+        try {
+            const res = await fetch('/student/group/1', { headers: { 'Authorization': 'Bearer ' + token } });
+            const students = await res.json();
+
+            if (students.length === 0) {
+                document.getElementById('group-students').innerHTML = '<p>Нет студентов в группе</p>';
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr><th>ФИО</th><th>Статус</th></tr>
+                    </thead>
+                    <tbody>
+            `;
+            students.forEach(s => {
+                html += `<tr><td>${s.fullName || '—'}</td><td><span class="badge ${s.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${s.status || '—'}</span></td></tr>`;
+            });
+            html += `</tbody></table>`;
+            document.getElementById('group-students').innerHTML = html;
+        } catch (err) {
+            document.getElementById('group-students').innerHTML = '<div class="error">Ошибка загрузки группы</div>';
+        }
+    }
+
+    async function loadCourses() {
+        try {
+            const res = await fetch('/student/my-courses', { headers: { 'Authorization': 'Bearer ' + token } });
+            const courses = await res.json();
+
+            if (!courses || courses.length === 0) {
+                document.getElementById('my-courses').innerHTML = '<p>Нет назначенных дисциплин</p>';
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th><th>Преподаватель</th></tr>
+                    </thead>
+                    <tbody>
+            `;
+            courses.forEach(c => {
+                html += `<tr>
+                            <td>${c.courseName || c.name || '—'}</td>
+                            <td>${c.hours || '—'}</td>
+                            <td>${c.semester || '—'}</td>
+                            <td>${c.teacherName || '—'}</td>
+                         </tr>`;
+            });
+            html += `</tbody></table>`;
+            document.getElementById('my-courses').innerHTML = html;
+        } catch (err) {
+            document.getElementById('my-courses').innerHTML = '<div class="error">Ошибка загрузки дисциплин</div>';
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        window.location.href = 'index.html';
+    }
+
+    loadProfile();
+    loadGroup();
+    loadCourses();
+</script>
 </body>
 </html>
