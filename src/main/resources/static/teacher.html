@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Преподаватель - Виртуальный деканат</title>
     <link rel="stylesheet" href="style.css">
+    <script src="toast.js"></script>
 </head>
 <body>
 <div class="header">
@@ -20,8 +21,9 @@
 <div class="container">
     <div class="card">
         <div class="section">
-            <h3>📋 Мой профиль</h3>
+            <h3>👤 Мой профиль</h3>
             <div id="profile-info"></div>
+            <button class="btn-manage" onclick="openDataModal()">⚙️ Управление данными</button>
         </div>
     </div>
 
@@ -34,18 +36,162 @@
 
     <div class="card">
         <div class="section">
-            <h3>📅 Расписание</h3>
-            <div id="schedule-list"></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="section">
             <h3>👥 Мои студенты</h3>
             <div id="students-list"></div>
         </div>
     </div>
 </div>
-<script src="app.js"></script>
+
+<!-- Модальное окно -->
+<div id="dataModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>⚙️ Управление данными</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+        </div>
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab('profile-tab')">📝 Профиль</button>
+            <button class="tab-btn" onclick="switchTab('password-tab')">🔐 Пароль</button>
+            <button class="tab-btn" onclick="switchTab('security-tab')">❓ Секретный вопрос</button>
+        </div>
+        <div id="profile-tab" class="tab-content active">
+            <div class="form-group"><label>ФИО:</label><input type="text" id="editFullName" placeholder="ФИО"></div>
+            <div class="form-group"><label>Должность:</label><input type="text" id="editPosition" placeholder="Должность"></div>
+            <div class="form-group"><label>Учёная степень:</label><input type="text" id="editDegree" placeholder="Учёная степень"></div>
+            <div class="form-group"><label>Телефон:</label><input type="text" id="editPhone" placeholder="Телефон"></div>
+            <button class="btn-save" onclick="updateProfile()">💾 Сохранить изменения</button>
+        </div>
+        <div id="password-tab" class="tab-content">
+            <div class="form-group"><label>Старый пароль:</label><input type="password" id="oldPassword" placeholder="Старый пароль"></div>
+            <div class="form-group"><label>Новый пароль:</label><input type="password" id="newPassword" placeholder="Новый пароль"></div>
+            <div class="form-group"><label>Подтверждение пароля:</label><input type="password" id="confirmPassword" placeholder="Подтвердите новый пароль"></div>
+            <button class="btn-save" onclick="changePassword()">🔑 Сменить пароль</button>
+        </div>
+        <div id="security-tab" class="tab-content">
+            <div class="form-group"><label>Секретный вопрос:</label><input type="text" id="securityQuestion" placeholder="Ваш секретный вопрос"></div>
+            <div class="form-group"><label>Ответ:</label><input type="text" id="securityAnswer" placeholder="Ответ"></div>
+            <button class="btn-save" onclick="updateSecurityQuestion()">❓ Сохранить вопрос</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let token = localStorage.getItem('token');
+    if (!token) window.location.href = 'index.html';
+
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    document.getElementById('user-login').innerText = payload.userId || 'User';
+    document.getElementById('user-role').innerText = payload.role || 'TEACHER';
+
+    async function loadTeacherData() {
+        try {
+            const profileRes = await fetch('/teacher/my-profile', { headers: { 'Authorization': 'Bearer ' + token } });
+            const teacher = await profileRes.json();
+            document.getElementById('profile-info').innerHTML = `<p><strong>ФИО:</strong> ${teacher.fullName || '—'}</p><p><strong>Должность:</strong> ${teacher.position || '—'}</p><p><strong>Учёная степень:</strong> ${teacher.academicDegree || '—'}</p><p><strong>Телефон:</strong> ${teacher.phone || '—'}</p>`;
+
+            const coursesRes = await fetch('/teacher/my-courses', { headers: { 'Authorization': 'Bearer ' + token } });
+            const courses = await coursesRes.json();
+            let coursesHtml = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th></tr></thead><tbody>';
+            if (courses && courses.length > 0) {
+                courses.forEach(c => { coursesHtml += `<tr><td>${c.name || '—'}</td><td>${c.hours || '—'}</td><td>${c.semester || '—'}</td></tr>`; });
+            } else {
+                coursesHtml += '<tr><td colspan="3">Нет дисциплин</td></tr>';
+            }
+            coursesHtml += '</tbody></table>';
+            document.getElementById('courses-list').innerHTML = coursesHtml;
+
+            const studentsRes = await fetch('/teacher/my-students', { headers: { 'Authorization': 'Bearer ' + token } });
+            const students = await studentsRes.json();
+            let studentsHtml = '<table class="data-table"><thead><tr><th>ФИО</th><th>Группа</th><th>Статус</th></tr></thead><tbody>';
+            if (students && students.length > 0) {
+                students.forEach(s => { studentsHtml += `<tr><td>${s.fullName || '—'}</td><td>${s.groupName || '—'}</td><td>${s.status || '—'}</td></tr>`; });
+            } else {
+                studentsHtml += '<tr><td colspan="3">Нет студентов</td></tr>';
+            }
+            studentsHtml += '</tbody></table>';
+            document.getElementById('students-list').innerHTML = studentsHtml;
+        } catch(err) { showError('Ошибка загрузки данных'); }
+    }
+
+    function openDataModal() { document.getElementById('dataModal').style.display = 'block'; }
+    function closeModal() { document.getElementById('dataModal').style.display = 'none'; }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    async function updateProfile() {
+        const fullName = document.getElementById('editFullName').value;
+        const position = document.getElementById('editPosition').value;
+        const academicDegree = document.getElementById('editDegree').value;
+        const phone = document.getElementById('editPhone').value;
+
+        try {
+            const res = await fetch('/teacher/update-profile', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fullName, position, academicDegree, phone })
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка');
+            }
+            showSuccess('✅ Профиль обновлён!');
+            closeModal();
+            loadTeacherData();
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    async function changePassword() {
+        const oldPassword = document.getElementById('oldPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        if (newPassword !== confirmPassword) { showError('❌ Пароли не совпадают'); return; }
+
+        try {
+            const res = await fetch('/teacher/change-password', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка');
+            }
+            showSuccess('✅ Пароль изменён!');
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    async function updateSecurityQuestion() {
+        const question = document.getElementById('securityQuestion').value;
+        const answer = document.getElementById('securityAnswer').value;
+        if (!question || !answer) { showError('❌ Заполните вопрос и ответ'); return; }
+
+        try {
+            const res = await fetch('/teacher/security-question', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, answer })
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка');
+            }
+            showSuccess('✅ Секретный вопрос обновлён!');
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    function logout() { localStorage.removeItem('token'); window.location.href = 'index.html'; }
+
+    window.onclick = function(event) { if (event.target == document.getElementById('dataModal')) closeModal(); }
+
+    loadTeacherData();
+</script>
 </body>
 </html>

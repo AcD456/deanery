@@ -10,53 +10,40 @@ public class Student {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @Column(name = "user_id")
+    private Integer userId;
+
+    @Column(name = "full_name")
     private String fullName;
 
+    @Column(name = "group_id")
     private Integer groupId;
 
     private String status;
 
     @OneToOne
-    @JoinColumn(name = "user_id", unique = true)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
 
-    public Integer getId() {
-        return id;
-    }
+    // Убираем связь с StudentContact
 
-    public void setId(Integer id) {
-        this.id = id;
-    }
+    public Student() {}
 
-    public String getFullName() {
-        return fullName;
-    }
+    public Integer getId() { return id; }
+    public void setId(Integer id) { this.id = id; }
 
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
+    public Integer getUserId() { return userId; }
+    public void setUserId(Integer userId) { this.userId = userId; }
 
-    public Integer getGroupId() {
-        return groupId;
-    }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
 
-    public void setGroupId(Integer groupId) {
-        this.groupId = groupId;
-    }
+    public Integer getGroupId() { return groupId; }
+    public void setGroupId(Integer groupId) { this.groupId = groupId; }
 
-    public String getStatus() {
-        return status;
-    }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 }

@@ -13,17 +13,10 @@ public class StudentContact {
     private String email;
     private String phone;
 
-    @OneToOne
-    @MapsId
-    @JoinColumn(name = "student_id")
-    private Student student;
-
     public StudentContact() {}
 
-    public StudentContact(Integer studentId, String email, String phone) {
+    public StudentContact(Integer studentId) {
         this.studentId = studentId;
-        this.email = email;
-        this.phone = phone;
     }
 
     public Integer getStudentId() { return studentId; }
@@ -34,7 +27,4 @@ public class StudentContact {
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
-
-    public Student getStudent() { return student; }
-    public void setStudent(Student student) { this.student = student; }
 }

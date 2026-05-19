@@ -22,6 +22,7 @@
         <div class="section">
             <h3>👤 Мой профиль</h3>
             <div id="profile" class="profile-info"></div>
+            <button class="btn-manage" onclick="openDataModal()">⚙️ Управление данными</button>
         </div>
     </div>
 
@@ -40,9 +41,70 @@
     </div>
 </div>
 
+<!-- Модальное окно -->
+<div id="dataModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>⚙️ Управление данными</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+        </div>
+
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab('profile-tab')">📝 Профиль</button>
+            <button class="tab-btn" onclick="switchTab('password-tab')">🔐 Пароль</button>
+            <button class="tab-btn" onclick="switchTab('security-tab')">❓ Секретный вопрос</button>
+        </div>
+
+        <div id="profile-tab" class="tab-content active">
+            <div class="form-group">
+                <label>ФИО:</label>
+                <input type="text" id="editFullName" placeholder="ФИО">
+            </div>
+            <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="editEmail" placeholder="Email">
+            </div>
+            <div class="form-group">
+                <label>Телефон:</label>
+                <input type="text" id="editPhone" placeholder="Телефон">
+            </div>
+            <button class="btn-save" onclick="updateProfile()">💾 Сохранить изменения</button>
+        </div>
+
+        <div id="password-tab" class="tab-content">
+            <div class="form-group">
+                <label>Старый пароль:</label>
+                <input type="password" id="oldPassword" placeholder="Введите старый пароль">
+            </div>
+            <div class="form-group">
+                <label>Новый пароль:</label>
+                <input type="password" id="newPassword" placeholder="Введите новый пароль">
+            </div>
+            <div class="form-group">
+                <label>Подтверждение пароля:</label>
+                <input type="password" id="confirmPassword" placeholder="Подтвердите новый пароль">
+            </div>
+            <button class="btn-save" onclick="changePassword()">🔑 Сменить пароль</button>
+        </div>
+
+        <div id="security-tab" class="tab-content">
+            <div class="form-group">
+                <label>Секретный вопрос:</label>
+                <input type="text" id="securityQuestion" placeholder="Например: Ваша любимая книга?">
+            </div>
+            <div class="form-group">
+                <label>Ответ:</label>
+                <input type="text" id="securityAnswer" placeholder="Ответ на вопрос">
+            </div>
+            <button class="btn-save" onclick="updateSecurityQuestion()">❓ Сохранить вопрос</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let token = localStorage.getItem('token');
     let currentUser = null;
+    let currentStudentData = null;
 
     if (!token) {
         window.location.href = 'index.html';
@@ -56,19 +118,32 @@
         console.error('Invalid token');
     }
 
+    // =======================
+    // ЗАГРУЗКА ДАННЫХ
+    // =======================
+
     async function loadProfile() {
         try {
             const res = await fetch('/student/my-profile', { headers: { 'Authorization': 'Bearer ' + token } });
             const student = await res.json();
+            currentStudentData = student;
 
             let html = `
                 <table class="info-table">
                     <tr><th>ФИО</th><td>${student.fullName || '—'}</td></tr>
                     <tr><th>Группа</th><td>${student.groupId || '—'}</td></tr>
                     <tr><th>Статус</th><td><span class="badge ${student.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${student.status || '—'}</span></td></tr>
+                    <tr><th>Email</th><td>${student.email || '—'}</td> </tr>
+                    <tr><th>Телефон</th><td>${student.phone || '—'}</td> </tr>
                 </table>
             `;
             document.getElementById('profile').innerHTML = html;
+
+            // Заполняем поля в модальном окне
+            document.getElementById('editFullName').value = student.fullName || '';
+            document.getElementById('editEmail').value = student.email || '';
+            document.getElementById('editPhone').value = student.phone || '';
+
         } catch (err) {
             document.getElementById('profile').innerHTML = '<div class="error">Ошибка загрузки профиля</div>';
         }
@@ -78,23 +153,15 @@
         try {
             const res = await fetch('/student/group/1', { headers: { 'Authorization': 'Bearer ' + token } });
             const students = await res.json();
-
             if (students.length === 0) {
                 document.getElementById('group-students').innerHTML = '<p>Нет студентов в группе</p>';
                 return;
             }
-
-            let html = `
-                <table class="data-table">
-                    <thead>
-                        <tr><th>ФИО</th><th>Статус</th></tr>
-                    </thead>
-                    <tbody>
-            `;
+            let html = '<table class="data-table"><thead><tr><th>ФИО</th><th>Статус</th></tr></thead><tbody>';
             students.forEach(s => {
                 html += `<tr><td>${s.fullName || '—'}</td><td><span class="badge ${s.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${s.status || '—'}</span></td></tr>`;
             });
-            html += `</tbody></table>`;
+            html += '</tbody></table>';
             document.getElementById('group-students').innerHTML = html;
         } catch (err) {
             document.getElementById('group-students').innerHTML = '<div class="error">Ошибка загрузки группы</div>';
@@ -105,37 +172,215 @@
         try {
             const res = await fetch('/student/my-courses', { headers: { 'Authorization': 'Bearer ' + token } });
             const courses = await res.json();
-
             if (!courses || courses.length === 0) {
                 document.getElementById('my-courses').innerHTML = '<p>Нет назначенных дисциплин</p>';
                 return;
             }
-
-            let html = `
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th><th>Преподаватель</th></tr>
-                    </thead>
-                    <tbody>
-            `;
+            let html = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th><th>Преподаватель</th></tr></thead><tbody>';
             courses.forEach(c => {
                 html += `<tr>
-                            <td>${c.courseName || c.name || '—'}</td>
-                            <td>${c.hours || '—'}</td>
-                            <td>${c.semester || '—'}</td>
-                            <td>${c.teacherName || '—'}</td>
-                         </tr>`;
+                    <td>${c.name || '—'}</td>
+                    <td>${c.hours || '—'}</td>
+                    <td>${c.semester || '—'}</td>
+                    <td>${c.teacherName || '—'}</td>
+                </tr>`;
             });
-            html += `</tbody></table>`;
+            html += '</tbody></table>';
             document.getElementById('my-courses').innerHTML = html;
         } catch (err) {
             document.getElementById('my-courses').innerHTML = '<div class="error">Ошибка загрузки дисциплин</div>';
         }
     }
 
+    // =======================
+    // МОДАЛЬНОЕ ОКНО
+    // =======================
+
+    function openDataModal() {
+        document.getElementById('dataModal').style.display = 'block';
+        if (currentStudentData) {
+            document.getElementById('editFullName').value = currentStudentData.fullName || '';
+            document.getElementById('editEmail').value = currentStudentData.email || '';
+            document.getElementById('editPhone').value = currentStudentData.phone || '';
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('dataModal').style.display = 'none';
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // =======================
+    // ОБНОВЛЕНИЕ ДАННЫХ
+    // =======================
+
+    function showSuccess(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification toast-success';
+        toast.innerHTML = `<div style="display: flex; align-items: center; gap: 10px;"><span>✅</span><span>${message}</span></div>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    function showError(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification toast-error';
+        toast.innerHTML = `<div style="display: flex; align-items: center; gap: 10px;"><span>❌</span><span>${message}</span></div>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    async function updateProfile() {
+        const fullName = document.getElementById('editFullName').value;
+        const email = document.getElementById('editEmail').value;
+        const phone = document.getElementById('editPhone').value;
+
+        const saveBtn = event.target;
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = '⏳ Сохранение...';
+        saveBtn.disabled = true;
+
+        try {
+            const response = await fetch('/student/update-profile', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ fullName, email, phone })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Ошибка сохранения');
+            }
+
+            const data = await response.json();
+            showSuccess('✅ ' + data.message);
+            closeModal();
+            loadProfile();
+            loadGroup();
+        } catch (err) {
+            showError('❌ ' + err.message);
+        } finally {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
+    async function changePassword() {
+        const oldPassword = document.getElementById('oldPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (!oldPassword || !newPassword) {
+            showError('❌ Заполните все поля');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showError('❌ Пароли не совпадают');
+            return;
+        }
+
+        if (newPassword.length < 4) {
+            showError('❌ Новый пароль должен содержать минимум 4 символа');
+            return;
+        }
+
+        const saveBtn = event.target;
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = '⏳ Смена...';
+        saveBtn.disabled = true;
+
+        try {
+            const response = await fetch('/student/change-password', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Ошибка смены пароля');
+            }
+
+            const data = await response.json();
+            showSuccess('✅ ' + data.message);
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        } catch (err) {
+            showError('❌ ' + err.message);
+        } finally {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
+    async function updateSecurityQuestion() {
+        const question = document.getElementById('securityQuestion').value;
+        const answer = document.getElementById('securityAnswer').value;
+
+        if (!question || !answer) {
+            showError('❌ Заполните вопрос и ответ');
+            return;
+        }
+
+        const saveBtn = event.target;
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = '⏳ Сохранение...';
+        saveBtn.disabled = true;
+
+        try {
+            const response = await fetch('/student/security-question', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question, answer })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Ошибка сохранения');
+            }
+
+            const data = await response.json();
+            showSuccess('✅ ' + data.message);
+        } catch (err) {
+            showError('❌ ' + err.message);
+        } finally {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
     function logout() {
         localStorage.removeItem('token');
         window.location.href = 'index.html';
+    }
+
+    // Закрытие модального окна при клике вне его
+    window.onclick = function(event) {
+        const modal = document.getElementById('dataModal');
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
     }
 
     loadProfile();

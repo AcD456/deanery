@@ -22,4 +22,9 @@ public class JournalService {
     public void logSimple(Integer userId, String action, String entityType, Integer entityId) {
         log(userId, action, entityType, entityId, null, null);
     }
+
+    @Transactional
+    public void logSimple(Integer userId, String action, String entityType, Integer entityId, String oldValue, String newValue) {
+        log(userId, action, entityType, entityId, oldValue, newValue);
+    }
 }

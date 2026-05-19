@@ -12,7 +12,8 @@ public class AclService {
             "DEAN", Map.of(
                     "applications", List.of("READ", "UPDATE", "APPROVE"),
                     "students", List.of("READ", "UPDATE", "TRANSFER", "EXPEL"),
-                    "orders", List.of("CREATE", "READ", "SIGN")
+                    "orders", List.of("CREATE", "READ", "SIGN"),
+                    "profile", List.of("READ", "UPDATE")
             ),
             "STUDENT", Map.of(
                     "profile", List.of("READ", "UPDATE"),
@@ -20,13 +21,16 @@ public class AclService {
                     "students", List.of("READ")
             ),
             "APPLICANT", Map.of(
-                    "applications", List.of("CREATE", "READ")
+                    "applications", List.of("CREATE", "READ"),
+                    "profile", List.of("READ", "UPDATE")
             ),
             "TEACHER", Map.of(
-                    "students", List.of("READ")
+                    "students", List.of("READ"),
+                    "profile", List.of("READ", "UPDATE")
             ),
             "ADMIN", Map.of(
-                    "users", List.of("CREATE", "READ", "UPDATE", "DELETE")
+                    "users", List.of("CREATE", "READ", "UPDATE", "DELETE"),
+                    "profile", List.of("READ", "UPDATE")
             )
     );
 

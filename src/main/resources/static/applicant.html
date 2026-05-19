@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Абитуриент - Виртуальный деканат</title>
     <link rel="stylesheet" href="style.css">
+    <script src="toast.js"></script>
 </head>
 <body>
 <div class="header">
@@ -20,9 +21,15 @@
 <div class="container">
     <div class="card">
         <div class="section">
+            <h3>👤 Мой профиль</h3>
+            <div id="profile-info"></div>
+            <button class="btn-manage" onclick="openDataModal()">⚙️ Управление данными</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section">
             <h3>📝 Подать заявление на поступление</h3>
-            <div id="apply-error" class="error hidden"></div>
-            <div id="apply-success" class="success hidden"></div>
             <div class="form-group">
                 <label>Программа обучения:</label>
                 <select id="programId">
@@ -39,14 +46,163 @@
         <div class="section">
             <h3>📋 Мои заявления</h3>
             <table id="applications-table">
-                <thead>
-                <tr><th>ID</th><th>Программа</th><th>Статус</th></tr>
-                </thead>
+                <thead><tr><th>ID</th><th>Программа</th><th>Статус</th></tr></thead>
                 <tbody id="applications-list"></tbody>
             </table>
         </div>
     </div>
 </div>
-<script src="app.js"></script>
+
+<!-- Модальное окно -->
+<div id="dataModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>⚙️ Управление данными</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+        </div>
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab('profile-tab')">📝 Профиль</button>
+            <button class="tab-btn" onclick="switchTab('password-tab')">🔐 Пароль</button>
+            <button class="tab-btn" onclick="switchTab('security-tab')">❓ Секретный вопрос</button>
+        </div>
+        <div id="profile-tab" class="tab-content active">
+            <div class="form-group">
+                <label>ФИО:</label>
+                <input type="text" id="editFullName" placeholder="ФИО">
+            </div>
+            <button class="btn-save" onclick="updateProfile()">💾 Сохранить изменения</button>
+        </div>
+        <div id="password-tab" class="tab-content">
+            <div class="form-group"><label>Старый пароль:</label><input type="password" id="oldPassword" placeholder="Введите старый пароль"></div>
+            <div class="form-group"><label>Новый пароль:</label><input type="password" id="newPassword" placeholder="Введите новый пароль"></div>
+            <div class="form-group"><label>Подтверждение пароля:</label><input type="password" id="confirmPassword" placeholder="Подтвердите новый пароль"></div>
+            <button class="btn-save" onclick="changePassword()">🔑 Сменить пароль</button>
+        </div>
+        <div id="security-tab" class="tab-content">
+            <div class="form-group"><label>Секретный вопрос:</label><input type="text" id="securityQuestion" placeholder="Ваш секретный вопрос"></div>
+            <div class="form-group"><label>Ответ:</label><input type="text" id="securityAnswer" placeholder="Ответ"></div>
+            <button class="btn-save" onclick="updateSecurityQuestion()">❓ Сохранить вопрос</button>
+        </div>
+    </div>
+</div>
+
+<script src="toast.js"></script>
+<script>
+    let token = localStorage.getItem('token');
+
+    if (!token) window.location.href = 'index.html';
+
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        document.getElementById('user-login').innerText = payload.userId || 'User';
+        document.getElementById('user-role').innerText = payload.role || 'APPLICANT';
+    } catch(e) { console.error(e); }
+
+    async function loadProfile() {
+        try {
+            const res = await fetch('/applicant/my-profile', { headers: { 'Authorization': 'Bearer ' + token } });
+            const data = await res.json();
+            document.getElementById('profile-info').innerHTML = `<p><strong>ФИО:</strong> ${data.fullName || '—'}</p>`;
+        } catch(err) { console.error(err); }
+    }
+
+    async function loadApplications() {
+        try {
+            const res = await fetch('/applicant/my-applications', { headers: { 'Authorization': 'Bearer ' + token } });
+            const applications = await res.json();
+            let html = '';
+            applications.forEach(app => {
+                html += `<tr><td>${app.id}</td><td>${app.programId}</td><td>${app.status}</td></tr>`;
+            });
+            document.getElementById('applications-list').innerHTML = html;
+        } catch(err) { console.error(err); }
+    }
+
+    async function submitApplication() {
+        const programId = document.getElementById('programId').value;
+        try {
+            const res = await fetch('/applicant/submit-application', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ programId: parseInt(programId) })
+            });
+            if (!res.ok) throw new Error('Ошибка');
+            showSuccess('✅ Заявление успешно подано!');
+            loadApplications();
+        } catch(err) { showError('❌ Ошибка при подаче заявления'); }
+    }
+
+    function openDataModal() { document.getElementById('dataModal').style.display = 'block'; }
+    function closeModal() { document.getElementById('dataModal').style.display = 'none'; }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    async function updateProfile() {
+        const fullName = document.getElementById('editFullName').value;
+        try {
+            const res = await fetch('/applicant/update-profile', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fullName })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showSuccess('✅ Профиль обновлён!');
+            closeModal();
+            loadProfile();
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    async function changePassword() {
+        const oldPassword = document.getElementById('oldPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        if (newPassword !== confirmPassword) { showError('❌ Пароли не совпадают'); return; }
+        try {
+            const res = await fetch('/applicant/change-password', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword, newPassword })
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка');
+            }
+            showSuccess('✅ Пароль изменён!');
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    async function updateSecurityQuestion() {
+        const question = document.getElementById('securityQuestion').value;
+        const answer = document.getElementById('securityAnswer').value;
+        if (!question || !answer) { showError('❌ Заполните вопрос и ответ'); return; }
+        try {
+            const res = await fetch('/applicant/security-question', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, answer })
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка');
+            }
+            showSuccess('✅ Секретный вопрос обновлён!');
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    function logout() { localStorage.removeItem('token'); window.location.href = 'index.html'; }
+
+    window.onclick = function(event) { if (event.target == document.getElementById('dataModal')) closeModal(); }
+
+    loadProfile();
+    loadApplications();
+</script>
 </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Администратор - Виртуальный деканат</title>
     <link rel="stylesheet" href="style.css">
+    <script src="toast.js"></script>
 </head>
 <body>
 <div class="header">
@@ -32,6 +33,60 @@
         </div>
     </div>
 </div>
-<script src="app.js"></script>
+<script src="toast.js"></script>
+<script>
+    let token = localStorage.getItem('token');
+    if (!token) window.location.href = 'index.html';
+
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    document.getElementById('user-login').innerText = payload.userId || 'User';
+    document.getElementById('user-role').innerText = payload.role || 'ADMIN';
+
+    async function loadUsers() {
+        try {
+            const res = await fetch('/admin/users', { headers: { 'Authorization': 'Bearer ' + token } });
+            const users = await res.json();
+            let html = '<table class="data-table"><thead><tr><th>ID</th><th>Логин</th><th>Роль</th><th>Действие</th></tr></thead><tbody>';
+            users.forEach(u => {
+                html += `<tr>
+                    <td>${u.id}</td>
+                    <td>${u.login}</td>
+                    <td>
+                        <select id="role-${u.id}" class="role-select">
+                            <option value="APPLICANT" ${u.role === 'APPLICANT' ? 'selected' : ''}>Абитуриент</option>
+                            <option value="STUDENT" ${u.role === 'STUDENT' ? 'selected' : ''}>Студент</option>
+                            <option value="DEAN" ${u.role === 'DEAN' ? 'selected' : ''}>Декан</option>
+                            <option value="TEACHER" ${u.role === 'TEACHER' ? 'selected' : ''}>Преподаватель</option>
+                            <option value="ADMIN" ${u.role === 'ADMIN' ? 'selected' : ''}>Администратор</option>
+                            <option value="INACTIVE" ${u.role === 'INACTIVE' ? 'selected' : ''}>Неактивен</option>
+                        </select>
+                    </td>
+                    <td><button class="btn btn-primary btn-sm" onclick="changeRole(${u.id})">Сохранить</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('users-list').innerHTML = html;
+        } catch(err) { showError('❌ Ошибка загрузки пользователей'); }
+    }
+
+    async function changeRole(userId) {
+        const newRole = document.getElementById(`role-${userId}`).value;
+        try {
+            const res = await fetch(`/admin/change-role?userId=${userId}&role=${newRole}`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showSuccess('✅ Роль изменена!');
+            loadUsers();
+        } catch(err) { showError('❌ ' + err.message); }
+    }
+
+    function showSuccess(msg) { showToast(msg, 'success'); }
+    function showError(msg) { showToast(msg, 'error'); }
+    function logout() { localStorage.removeItem('token'); window.location.href = 'index.html'; }
+
+    loadUsers();
+</script>
 </body>
 </html>

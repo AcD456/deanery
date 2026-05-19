@@ -486,3 +486,100 @@ document.addEventListener('DOMContentLoaded', function() {
         loadTeacherStudents();
     }
 });
+
+
+// Добавьте в конец файла app.js
+
+async function updateProfile() {
+    const fullName = document.getElementById('newFullName')?.value;
+    const email = document.getElementById('newEmail')?.value;
+    const phone = document.getElementById('newPhone')?.value;
+
+    try {
+        const response = await fetch('/student/update-profile', {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ fullName, email, phone })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message);
+        }
+
+        const data = await response.json();
+        showMessage('attempts-info', '✅ ' + data.message, false);
+        setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+        showMessage('attempts-info', '❌ ' + err.message, true);
+    }
+}
+
+async function changePassword() {
+    const oldPassword = document.getElementById('oldPassword')?.value;
+    const newPassword = document.getElementById('newPassword')?.value;
+    const confirmPassword = document.getElementById('confirmPassword')?.value;
+
+    if (newPassword !== confirmPassword) {
+        showMessage('attempts-info', '❌ Пароли не совпадают', true);
+        return;
+    }
+
+    try {
+        const response = await fetch('/student/change-password', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ oldPassword, newPassword })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message);
+        }
+
+        const data = await response.json();
+        showMessage('attempts-info', '✅ ' + data.message, false);
+        document.getElementById('oldPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+    } catch (err) {
+        showMessage('attempts-info', '❌ ' + err.message, true);
+    }
+}
+
+async function updateSecurityQuestion() {
+    const question = document.getElementById('securityQuestion')?.value;
+    const answer = document.getElementById('securityAnswer')?.value;
+
+    if (!question || !answer) {
+        showMessage('attempts-info', '❌ Заполните вопрос и ответ', true);
+        return;
+    }
+
+    try {
+        const response = await fetch('/student/security-question', {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question, answer })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message);
+        }
+
+        const data = await response.json();
+        showMessage('attempts-info', '✅ ' + data.message, false);
+    } catch (err) {
+        showMessage('attempts-info', '❌ ' + err.message, true);
+    }
+}

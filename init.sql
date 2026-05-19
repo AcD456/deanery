@@ -1,5 +1,5 @@
 -- =====================================================
--- 1. ТАБЛИЦЫ БЕЗ ВНЕШНИХ КЛЮЧЕЙ
+-- 1. ТАБЛИЦЫ
 -- =====================================================
 
 -- Пользователи
@@ -146,12 +146,17 @@ CREATE TABLE IF NOT EXISTS journal (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
--- Контакты студентов (создаём таблицу, FK добавим позже)
+-- Контакты студентов
 CREATE TABLE IF NOT EXISTS student_contacts (
-                                                student_id INT PRIMARY KEY,
-                                                email VARCHAR(100) NOT NULL UNIQUE,
-    phone VARCHAR(20)
-    );
+                                  student_id INTEGER PRIMARY KEY,
+                                  email VARCHAR(100),
+                                  phone VARCHAR(20)
+);
+
+-- Добавить внешний ключ
+ALTER TABLE student_contacts
+    ADD CONSTRAINT fk_student_contacts_student
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE;
 
 -- =====================================================
 -- 2. ВНЕШНИЕ КЛЮЧИ
@@ -173,7 +178,6 @@ ALTER TABLE order_items ADD CONSTRAINT fk_order_items_student FOREIGN KEY (stude
 ALTER TABLE order_items ADD CONSTRAINT fk_order_items_from_group FOREIGN KEY (from_group_id) REFERENCES groups(id);
 ALTER TABLE order_items ADD CONSTRAINT fk_order_items_to_group FOREIGN KEY (to_group_id) REFERENCES groups(id);
 
--- Добавляем поля в groups
 ALTER TABLE groups ADD COLUMN IF NOT EXISTS specialization_id INT REFERENCES specializations(id);
 ALTER TABLE groups ADD COLUMN IF NOT EXISTS degree_level_id INT REFERENCES degree_levels(id);
 ALTER TABLE groups ADD COLUMN IF NOT EXISTS start_year INT;
@@ -200,7 +204,7 @@ ALTER TABLE journal ADD CONSTRAINT fk_journal_user FOREIGN KEY (user_id) REFEREN
 ALTER TABLE student_contacts ADD CONSTRAINT fk_contacts_student FOREIGN KEY (student_id) REFERENCES students(id);
 
 -- =====================================================
--- 3. ТЕСТОВЫЕ ДАННЫЕ (В ПРАВИЛЬНОМ ПОРЯДКЕ)
+-- 3. ТЕСТОВЫЕ ДАННЫЕ
 -- =====================================================
 
 -- Пользователи
@@ -212,7 +216,7 @@ INSERT INTO users (login, password, role) VALUES
                                               ('admin_user', 'adminpass', 'ADMIN'),
                                               ('bychkov', 'pass123', 'TEACHER'),
                                               ('nosovitsky', 'pass123', 'DEAN'),
-                                              ('lifantiev', 'pass123', 'STUDENT')
+                                              ('lifantev', 'pass123', 'STUDENT')
     ON CONFLICT (login) DO NOTHING;
 
 -- Группы
@@ -222,39 +226,23 @@ INSERT INTO groups (name) VALUES
                               ('БИЗ-201')
     ON CONFLICT (name) DO NOTHING;
 
--- =====================================================
--- СТУДЕНТЫ (СНАЧАЛА, ПОТОМ КОНТАКТЫ)
--- =====================================================
-
--- Студент Петров (user_id = 2)
+-- Студент Петров
 INSERT INTO students (user_id, full_name, group_id, status) VALUES
     (2, 'Петров Пётр Петрович', 1, 'ACTIVE')
     ON CONFLICT (user_id) DO NOTHING;
 
--- Студент Лифантьев (user_id = 8)
+-- Студент Лифантьев
 INSERT INTO students (user_id, full_name, group_id, status) VALUES
-    ((SELECT id FROM users WHERE login = 'lifantiev'), 'Лифантьев Дмитрий Андреевич', 1, 'ACTIVE')
+    ((SELECT id FROM users WHERE login = 'lifantev'), 'Лифантьев Дмитрий Андреевич', 1, 'ACTIVE')
     ON CONFLICT (user_id) DO NOTHING;
 
--- =====================================================
--- КОНТАКТЫ СТУДЕНТОВ (ПОСЛЕ СОЗДАНИЯ СТУДЕНТОВ)
--- =====================================================
-
--- Контакты Петрова (получаем реальный id студента)
+-- Контакты студентов
 INSERT INTO student_contacts (student_id, email, phone)
 SELECT id, 'petrov@university.ru', '+79991234567'
 FROM students WHERE user_id = 2
     ON CONFLICT (student_id) DO NOTHING;
 
--- Контакты Лифантьева
-INSERT INTO student_contacts (student_id, email, phone)
-SELECT id, 'lifantiev@university.ru', '+79998887766'
-FROM students WHERE user_id = (SELECT id FROM users WHERE login = 'lifantiev')
-    ON CONFLICT (student_id) DO NOTHING;
 
--- =====================================================
--- ОСТАЛЬНЫЕ ДАННЫЕ
--- =====================================================
 
 -- Абитуриент
 INSERT INTO applicants (user_id, full_name) VALUES

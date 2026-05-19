@@ -1,11 +1,15 @@
 package com.university.deanery.controller;
 
+import com.university.deanery.dto.ChangePasswordRequest;
+import com.university.deanery.dto.SecurityQuestionRequest;
+import com.university.deanery.dto.UpdateProfileRequest;
 import com.university.deanery.model.Teacher;
 import com.university.deanery.model.User;
-import com.university.deanery.repository.TeacherRepository;
+import com.university.deanery.repository.*;
 import com.university.deanery.security.AclService;
 import com.university.deanery.security.JwtService;
 import com.university.deanery.service.AuthService;
+import com.university.deanery.service.JournalService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +33,15 @@ public class TeacherController {
     @Autowired
     private TeacherRepository teacherRepository;
 
+    @Autowired
+    private JournalService journalService;
+
+    @Autowired
+    private StudentContactRepository studentContactRepository;
+
+    @Autowired
+    private ApplicantRepository applicantRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -40,7 +53,6 @@ public class TeacherController {
     public Teacher getMyProfile(@RequestHeader("Authorization") String token) {
         User user = getUser(token);
         aclService.checkAccess(user, "profile", "READ");
-
         return teacherRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Преподаватель не найден"));
     }
@@ -53,6 +65,7 @@ public class TeacherController {
         Teacher teacher = teacherRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Преподаватель не найден"));
 
+        @SuppressWarnings("unchecked")
         List<Object[]> results = entityManager.createNativeQuery(
                 "SELECT DISTINCT c.name, c.hours, cur.semester " +
                         "FROM teacher_course tc " +
@@ -80,11 +93,9 @@ public class TeacherController {
         Teacher teacher = teacherRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Преподаватель не найден"));
 
-        // Здесь можно добавить реальное расписание, пока возвращаем пустой список
-        // Для демонстрации создаём тестовое расписание
         List<Map<String, Object>> schedule = new ArrayList<>();
 
-        // Пример: расписание на основе дисциплин
+        @SuppressWarnings("unchecked")
         List<Object[]> courses = entityManager.createNativeQuery(
                 "SELECT DISTINCT c.name, cur.group_id, g.name as group_name " +
                         "FROM teacher_course tc " +
@@ -105,7 +116,6 @@ public class TeacherController {
             lesson.put("classroom", "—");
             schedule.add(lesson);
         }
-
         return schedule;
     }
 
@@ -117,6 +127,7 @@ public class TeacherController {
         Teacher teacher = teacherRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Преподаватель не найден"));
 
+        @SuppressWarnings("unchecked")
         List<Object[]> results = entityManager.createNativeQuery(
                 "SELECT DISTINCT s.id, s.full_name, s.status, g.name as group_name " +
                         "FROM curriculum cur " +
@@ -135,5 +146,58 @@ public class TeacherController {
             students.add(student);
         }
         return students;
+    }
+
+    @PutMapping("/update-profile")
+    public Map<String, String> updateProfile(@RequestHeader("Authorization") String token,
+                                             @RequestBody UpdateProfileRequest request) {
+        User user = getUser(token);
+        aclService.checkAccess(user, "profile", "UPDATE");
+
+        // Обновляем только то, что есть в таблице teachers
+        Teacher teacher = teacherRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Преподаватель не найден"));
+
+        if (request.getFullName() != null && !request.getFullName().isEmpty()) {
+            teacher.setFullName(request.getFullName());
+        }
+        if (request.getPhone() != null && !request.getPhone().isEmpty()) {
+            teacher.setPhone(request.getPhone());
+        }
+        if (request.getPosition() != null && !request.getPosition().isEmpty()) {
+            teacher.setPosition(request.getPosition());
+        }
+        if (request.getAcademicDegree() != null && !request.getAcademicDegree().isEmpty()) {
+            teacher.setAcademicDegree(request.getAcademicDegree());
+        }
+        teacherRepository.save(teacher);
+
+        journalService.logSimple(user.getId(), "UPDATE_PROFILE", user.getRole(), user.getId());
+
+        return Map.of("message", "Профиль обновлён");
+    }
+
+    @PostMapping("/change-password")
+    public Map<String, String> changePassword(@RequestHeader("Authorization") String token,
+                                              @RequestBody ChangePasswordRequest request) {
+        User user = getUser(token);
+
+        authService.changePassword(user.getId(), request.getOldPassword(), request.getNewPassword());
+
+        journalService.logSimple(user.getId(), "CHANGE_PASSWORD", user.getRole(), user.getId());
+
+        return Map.of("message", "Пароль изменён");
+    }
+
+    @PutMapping("/security-question")
+    public Map<String, String> updateSecurityQuestion(@RequestHeader("Authorization") String token,
+                                                      @RequestBody SecurityQuestionRequest request) {
+        User user = getUser(token);
+
+        authService.updateSecurityQuestion(user.getId(), request.getQuestion(), request.getAnswer());
+
+        journalService.logSimple(user.getId(), "UPDATE_SECURITY_QUESTION", user.getRole(), user.getId());
+
+        return Map.of("message", "Секретный вопрос обновлён");
     }
 }
