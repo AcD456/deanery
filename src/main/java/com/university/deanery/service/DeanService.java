@@ -21,10 +21,11 @@ public class DeanService {
     @Autowired
     private ApplicantRepository applicantRepository;
 
+    @Autowired
+    private StudentGroupHistoryRepository studentGroupHistoryRepository;
 
     @Transactional
     public void approveApplication(Integer applicationId, Integer deanId) {
-
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new RuntimeException("Заявление не найдено"));
 
@@ -33,10 +34,9 @@ public class DeanService {
         }
 
         application.setStatus("APPROVED");
+        applicationRepository.save(application);
 
         Integer applicantId = application.getApplicantId();
-
-        // 👉 ВАЖНО: applicantId = ID из applicants
         Applicant applicant = applicantRepository.findById(applicantId)
                 .orElseThrow(() -> new RuntimeException("Абитуриент не найден"));
 
@@ -55,32 +55,45 @@ public class DeanService {
         student.setFullName(applicant.getFullName());
         student.setGroupId(1);
         student.setStatus("ACTIVE");
-
         studentRepository.save(student);
 
         user.setRole("STUDENT");
         userRepository.save(user);
     }
 
-
     @Transactional
     public void expelStudent(Integer studentId, Integer deanId) {
-
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Студент не найден"));
 
+        String oldStatus = student.getStatus();
         student.setStatus("EXPELLED");
         studentRepository.save(student);
-    }
 
+        // Сохраняем в историю переводов как отчисление
+        StudentGroupHistory history = new StudentGroupHistory();
+        history.setStudentId(student.getId());
+        history.setFromGroupId(student.getGroupId());
+        history.setToGroupId(null);
+        history.setOrderId(null);
+        studentGroupHistoryRepository.save(history);
+    }
 
     @Transactional
     public void transferStudent(Integer studentId, Integer newGroupId, Integer deanId) {
-
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Студент не найден"));
 
+        Integer oldGroupId = student.getGroupId();
         student.setGroupId(newGroupId);
         studentRepository.save(student);
+
+        // Сохраняем в историю переводов
+        StudentGroupHistory history = new StudentGroupHistory();
+        history.setStudentId(student.getId());
+        history.setFromGroupId(oldGroupId);
+        history.setToGroupId(newGroupId);
+        history.setOrderId(null);
+        studentGroupHistoryRepository.save(history);
     }
 }

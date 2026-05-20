@@ -16,12 +16,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import java.util.Optional;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/student")
@@ -152,4 +148,81 @@ public class StudentController {
 
         return Map.of("message", "Секретный вопрос обновлён");
     }
+
+    // Добавьте эти методы в StudentController
+
+    @GetMapping("/my-transfers")
+    public List<Map<String, Object>> getMyTransfers(@RequestHeader("Authorization") String token) {
+        User user = getUser(token);
+        aclService.checkAccess(user, "profile", "READ");
+
+        Student student = studentService.getStudentByUserId(user.getId());
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = entityManager.createNativeQuery(
+                "SELECT sgh.from_group_id, sgh.to_group_id, sgh.changed_at, " +
+                        "       fg.name as from_group_name, tg.name as to_group_name " +
+                        "FROM student_group_history sgh " +
+                        "LEFT JOIN groups fg ON sgh.from_group_id = fg.id " +
+                        "LEFT JOIN groups tg ON sgh.to_group_id = tg.id " +
+                        "WHERE sgh.student_id = ? " +
+                        "ORDER BY sgh.changed_at DESC"
+        ).setParameter(1, student.getId()).getResultList();
+
+        List<Map<String, Object>> transfers = new ArrayList<>();
+        for (Object[] row : results) {
+            Map<String, Object> transfer = new HashMap<>();
+            transfer.put("fromGroupId", row[0]);
+            transfer.put("toGroupId", row[1]);
+            transfer.put("changedAt", row[2] != null ? row[2].toString() : "—");
+            transfer.put("fromGroupName", row[3] != null ? row[3].toString() : "—");
+            transfer.put("toGroupName", row[4] != null ? row[4].toString() : "—");
+            transfers.add(transfer);
+        }
+        return transfers;
+    }
+
+    @GetMapping("/my-grades")
+    public List<Map<String, Object>> getMyGrades(@RequestHeader("Authorization") String token) {
+        User user = getUser(token);
+        aclService.checkAccess(user, "profile", "READ");
+
+        Student student = studentService.getStudentByUserId(user.getId());
+        Integer groupId = student.getGroupId();
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = entityManager.createNativeQuery(
+                "SELECT c.name, cur.semester, t.full_name " +
+                        "FROM curriculum cur " +
+                        "JOIN courses c ON cur.course_id = c.id " +
+                        "LEFT JOIN teachers t ON cur.teacher_id = t.id " +
+                        "WHERE cur.group_id = ? " +
+                        "AND c.name IS NOT NULL " +
+                        "AND c.name != '' " +
+                        "ORDER BY cur.semester ASC, c.name ASC"
+        ).setParameter(1, groupId).getResultList();
+
+        List<Map<String, Object>> grades = new ArrayList<>();
+        for (Object[] row : results) {
+
+            Map<String, Object> grade = new LinkedHashMap<>();
+
+            grade.put("courseName",
+                    row[0] != null ? row[0].toString().trim() : "?");
+
+            grade.put("semester",
+                    row[1] != null ? row[1].toString() : "?");
+
+            grade.put("teacherName",
+                    row[2] != null ? row[2].toString() : "?");
+
+            grade.put("grade", "-");
+
+            grades.add(grade);
+        }
+
+        return grades;
+    }
+
+
 }

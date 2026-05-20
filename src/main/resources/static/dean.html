@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Декан - Виртуальный деканат</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="toast.js"></script>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/toast.js"></script>
+    <script src="/app.js"></script>
 </head>
 <body>
 <div class="header">
@@ -23,7 +24,7 @@
         <div class="section">
             <h3>👤 Мой профиль</h3>
             <div id="profile-info"></div>
-            <button class="btn-manage" onclick="openDataModal()">⚙️ Управление данными</button>
+            <button class="btn-manage" onclick="openDeanDataModal()">⚙️ Управление данными</button>
         </div>
     </div>
 
@@ -37,198 +38,308 @@
     <div class="card">
         <div class="section">
             <h3>👥 Управление студентами</h3>
+
+            <div class="filter-bar">
+                <select id="groupFilter">
+                    <option value="">Все группы</option>
+                </select>
+                <input type="text" id="searchInput" placeholder="🔍 Поиск по фамилии...">
+                <button onclick="loadDeanStudents()">Поиск</button>
+                <button onclick="resetDeanFilters()">Сбросить</button>
+            </div>
+
             <div id="students-list"></div>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно -->
-<div id="dataModal" class="modal">
+<!-- Модальное окно для информации о студенте -->
+<div id="studentDetailsModal" class="modal">
+    <div class="modal-content student-details-modal">
+        <div class="modal-header">
+            <h3>📋 Информация о студенте</h3>
+            <span class="close" onclick="closeStudentDetailsModal()">&times;</span>
+        </div>
+        <div id="studentDetailsContent"></div>
+    </div>
+</div>
+
+<!-- Модальное окно для управления данными декана -->
+<div id="deanDataModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
             <h3>⚙️ Управление данными</h3>
-            <span class="close" onclick="closeModal()">&times;</span>
+            <span class="close" onclick="closeDeanModal()">&times;</span>
         </div>
         <div class="tab-buttons">
-            <button class="tab-btn active" onclick="switchTab('profile-tab')">📝 Профиль</button>
-            <button class="tab-btn" onclick="switchTab('password-tab')">🔐 Пароль</button>
-            <button class="tab-btn" onclick="switchTab('security-tab')">❓ Секретный вопрос</button>
+            <button class="tab-btn active" onclick="switchDeanTab('dean-profile-tab')">📝 Профиль</button>
+            <button class="tab-btn" onclick="switchDeanTab('dean-password-tab')">🔐 Пароль</button>
+            <button class="tab-btn" onclick="switchDeanTab('dean-security-tab')">❓ Секретный вопрос</button>
         </div>
-        <div id="profile-tab" class="tab-content active">
+        <div id="dean-profile-tab" class="tab-content active">
             <div class="form-group"><label>Email:</label><input type="email" id="editEmail" placeholder="Email"></div>
             <div class="form-group"><label>Телефон:</label><input type="text" id="editPhone" placeholder="Телефон"></div>
-            <button class="btn-save" onclick="updateProfile()">💾 Сохранить изменения</button>
+            <button class="btn-save" onclick="updateDeanProfile()">💾 Сохранить изменения</button>
         </div>
-        <div id="password-tab" class="tab-content">
+        <div id="dean-password-tab" class="tab-content">
             <div class="form-group"><label>Старый пароль:</label><input type="password" id="oldPassword" placeholder="Старый пароль"></div>
             <div class="form-group"><label>Новый пароль:</label><input type="password" id="newPassword" placeholder="Новый пароль"></div>
-            <div class="form-group"><label>Подтверждение пароля:</label><input type="password" id="confirmPassword" placeholder="Подтвердите новый пароль"></div>
-            <button class="btn-save" onclick="changePassword()">🔑 Сменить пароль</button>
+            <div class="form-group"><label>Подтверждение:</label><input type="password" id="confirmPassword" placeholder="Подтвердите новый пароль"></div>
+            <button class="btn-save" onclick="changeDeanPassword()">🔑 Сменить пароль</button>
         </div>
-        <div id="security-tab" class="tab-content">
+        <div id="dean-security-tab" class="tab-content">
             <div class="form-group"><label>Секретный вопрос:</label><input type="text" id="securityQuestion" placeholder="Ваш секретный вопрос"></div>
             <div class="form-group"><label>Ответ:</label><input type="text" id="securityAnswer" placeholder="Ответ"></div>
-            <button class="btn-save" onclick="updateSecurityQuestion()">❓ Сохранить вопрос</button>
+            <button class="btn-save" onclick="updateDeanSecurityQuestion()">❓ Сохранить вопрос</button>
         </div>
     </div>
 </div>
 
 <script>
-    let token = localStorage.getItem('token');
-    if (!token) window.location.href = 'index.html';
+    (function() {
+        if (!localStorage.getItem('token')) {
+            window.location.href = '/index.html';
+            return;
+        }
 
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    document.getElementById('user-login').innerText = payload.userId || 'User';
-    document.getElementById('user-role').innerText = payload.role || 'DEAN';
-
-    function showSuccess(msg) { showToast(msg, 'success'); }
-    function showError(msg) { showToast(msg, 'error'); }
-
-    async function loadData() {
         try {
-            const appsRes = await fetch('/dean/applications', { headers: { 'Authorization': 'Bearer ' + token } });
-            const applications = await appsRes.json();
-            let appsHtml = '<table class="data-table"><thead><tr><th>ID</th><th>Абитуриент</th><th>Программа</th><th>Статус</th><th>Действие</th></tr></thead><tbody>';
-            if (applications && applications.length > 0) {
-                applications.forEach(app => {
-                    appsHtml += `<tr>
-                        <td>${app.id}</td>
-                        <td>${app.applicantId}</td>
-                        <td>${app.programId}</td>
-                        <td>${app.status}</td>
-                        <td><button class="btn btn-success btn-sm" onclick="approveApp(${app.id})">Одобрить</button></td>
-                    </tr>`;
+            const payload = JSON.parse(atob(localStorage.getItem('token').split('.')[1]));
+            document.getElementById('user-login').innerText = payload.userId || 'User';
+            document.getElementById('user-role').innerText = payload.role || 'DEAN';
+        } catch(e) {
+            console.error('Invalid token');
+        }
+
+        // Загрузка групп в фильтр
+        async function loadGroups() {
+            try {
+                const res = await fetch('/dean/groups-list', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                const groups = await res.json();
+                const select = document.getElementById('groupFilter');
+                if (select) {
+                    select.innerHTML = '<option value="">Все группы</option>';
+                    groups.forEach(g => {
+                        const option = document.createElement('option');
+                        option.value = g.id;
+                        option.textContent = g.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch(err) { console.error(err); }
+        }
+
+        // Загрузка заявлений
+        window.loadDeanApplications = async function() {
+            try {
+                const res = await fetch('/dean/applications', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                const applications = await res.json();
+                let html = '<table class="data-table"><thead><tr><th>ID</th><th>Абитуриент</th><th>Программа</th><th>Статус</th><th>Действие</th></tr></thead><tbody>';
+                if (applications && applications.length > 0) {
+                    applications.forEach(app => {
+                        html += `<tr>
+                            <td>${app.id}</td>
+                            <td>${app.applicantId}</td>
+                            <td>${app.programId}</td>
+                            <td>${app.status}</td>
+                            <td><button class="btn btn-success btn-sm" onclick="approveDeanApp(${app.id})">Одобрить</button></td>
+                        </tr>`;
+                    });
+                } else {
+                    html += '<tr><td colspan="5">Нет заявлений</td>' + '</tr>';
+                }
+                html += '</tbody></table>';
+                document.getElementById('applications-list').innerHTML = html;
+            } catch(err) { showError('Ошибка загрузки заявлений'); }
+        };
+
+        window.approveDeanApp = async function(appId) {
+            try {
+                await fetch(`/dean/approve-application/${appId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                showSuccess('✅ Заявление одобрено!');
+                loadDeanApplications();
+                loadDeanStudents();
+            } catch(err) { showError('❌ Ошибка при одобрении'); }
+        };
+
+        // Загрузка студентов
+        window.loadDeanStudents = async function() {
+            try {
+                const groupId = document.getElementById('groupFilter').value;
+                const search = document.getElementById('searchInput').value;
+
+                let url = '/dean/students/filter?';
+                if (groupId) url += `groupId=${groupId}&`;
+                if (search) url += `search=${encodeURIComponent(search)}&`;
+
+                const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                const students = await res.json();
+
+                if (!document.getElementById('students-list')) return;
+
+                let html = '<table class="data-table"><thead><tr><th>ID</th><th>ФИО</th><th>Группа</th><th>Статус</th><th>Действия</th><th>Информация</th></tr></thead><tbody>';
+                if (students && students.length > 0) {
+                    students.forEach(s => {
+                        html += `<tr>
+                            <td>${s.id}</td>
+                            <td>${s.fullName}</td>
+                            <td><input type="number" id="group-${s.id}" value="${s.groupId || 1}" style="width:70px"></td>
+                            <td>${s.status}</td>
+                            <td>
+                                <button class="btn btn-warning btn-sm" onclick="transferDeanStudent(${s.id})">Перевести</button>
+                                <button class="btn btn-danger btn-sm" onclick="expelDeanStudent(${s.id})">Отчислить</button>
+                            </td>
+                            <td><button class="info-icon" onclick="showStudentDetails(${s.id})">ℹ️</button></td>
+                        </tr>`;
+                    });
+                } else {
+                    html += '<tr><td colspan="6">Нет студентов</td>' + '</tr>';
+                }
+                html += '</tbody></table>';
+                document.getElementById('students-list').innerHTML = html;
+            } catch(err) { showError('Ошибка загрузки студентов'); }
+        };
+
+        window.resetDeanFilters = function() {
+            const groupFilter = document.getElementById('groupFilter');
+            const searchInput = document.getElementById('searchInput');
+            if (groupFilter) groupFilter.value = '';
+            if (searchInput) searchInput.value = '';
+            loadDeanStudents();
+        };
+
+        window.transferDeanStudent = async function(studentId) {
+            const groupId = document.getElementById(`group-${studentId}`).value;
+            try {
+                await fetch(`/dean/transfer-student/${studentId}/to-group/${groupId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                showSuccess('✅ Студент переведён!');
+                loadDeanStudents();
+            } catch(err) { showError('❌ Ошибка при переводе'); }
+        };
+
+        window.expelDeanStudent = async function(studentId) {
+            if (!confirm('Отчислить студента?')) return;
+            try {
+                await fetch(`/dean/expel-student/${studentId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                showSuccess('✅ Студент отчислен!');
+                loadDeanStudents();
+            } catch(err) { showError('❌ Ошибка при отчислении'); }
+        };
+
+        window.showStudentDetails = async function(studentId) {
+            try {
+                const res = await fetch(`/dean/student-details/${studentId}`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+                const data = await res.json();
+
+                let transfersHtml = '';
+                if (data.transfers && data.transfers.length > 0) {
+                    transfersHtml = '<table class="details-table"><thead><tr><th>Из группы</th><th>В группу</th><th>Дата</th></tr></thead><tbody>';
+                    data.transfers.forEach(t => {
+                        transfersHtml += `<tr>
+                            <td>${t.fromGroupName || t.fromGroupId || '—'}</td>
+                            <td>${t.toGroupName || t.toGroupId || '—'}</td>
+                            <td>${t.changedAt || '—'}</td>
+                        </tr>`;
+                    });
+                    transfersHtml += '</tbody></table>';
+                } else {
+                    transfersHtml = '<p>Нет истории переводов</p>';
+                }
+
+                const html = `
+                    <table class="details-table">
+                        <tr><th>ФИО</th><td>${data.fullName || '—'}</td></tr>
+                        <tr><th>Группа</th><td>${data.groupName || '—'}</td></tr>
+                        <td><th>Статус</th><td>${data.status || '—'}</tr>
+                        <tr><th>Email</th><td>${data.email || '—'}</td></tr>
+                        <tr><th>Телефон</th><td>${data.phone || '—'}</tr>
+                    </table>
+                    <h4 style="margin-top:20px;">📜 История переводов</h4>
+                    ${transfersHtml}
+                `;
+                document.getElementById('studentDetailsContent').innerHTML = html;
+                document.getElementById('studentDetailsModal').style.display = 'block';
+            } catch(err) {
+                showError('Ошибка загрузки данных студента');
+            }
+        };
+
+        window.closeStudentDetailsModal = function() {
+            document.getElementById('studentDetailsModal').style.display = 'none';
+        };
+
+        window.openDeanDataModal = function() { document.getElementById('deanDataModal').style.display = 'block'; };
+        window.closeDeanModal = function() { document.getElementById('deanDataModal').style.display = 'none'; };
+
+        window.switchDeanTab = function(tabId) {
+            const tabs = document.querySelectorAll('#deanDataModal .tab-content');
+            const btns = document.querySelectorAll('#deanDataModal .tab-btn');
+            tabs.forEach(t => t.classList.remove('active'));
+            btns.forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            if (event && event.target) event.target.classList.add('active');
+        };
+
+        window.updateDeanProfile = async function() {
+            const email = document.getElementById('editEmail').value;
+            const phone = document.getElementById('editPhone').value;
+            try {
+                const res = await fetch('/dean/update-profile', {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token'), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, phone })
                 });
-            } else {
-                appsHtml += '<tr><td colspan="5">Нет заявлений</td></tr>';
-            }
-            appsHtml += '</tbody></tr>';
-            document.getElementById('applications-list').innerHTML = appsHtml;
+                if (!res.ok) throw new Error(await res.text());
+                showSuccess('✅ Профиль обновлён!');
+                closeDeanModal();
+            } catch(err) { showError('❌ ' + err.message); }
+        };
 
-            const studentsRes = await fetch('/dean/students', { headers: { 'Authorization': 'Bearer ' + token } });
-            const students = await studentsRes.json();
-            let studentsHtml = '<table class="data-table"><thead><tr><th>ID</th><th>ФИО</th><th>Группа</th><th>Статус</th><th>Действия</th></tr></thead><tbody>';
-            if (students && students.length > 0) {
-                students.forEach(s => {
-                    studentsHtml += `<tr>
-                        <td>${s.id}</td>
-                        <td>${s.fullName || '—'}</td>
-                        <td><input type="number" id="group-${s.id}" value="${s.groupId}" style="width:60px"></td>
-                        <td>${s.status || '—'}</td>
-                        <td><button class="btn btn-warning btn-sm" onclick="transferStudent(${s.id})">Перевести</button>
-                            <button class="btn btn-danger btn-sm" onclick="expelStudent(${s.id})">Отчислить</button></td>
-                    </tr>`;
+        window.changeDeanPassword = async function() {
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            if (newPassword !== confirmPassword) { showError('❌ Пароли не совпадают'); return; }
+            try {
+                const res = await fetch('/dean/change-password', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token'), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oldPassword, newPassword })
                 });
-            } else {
-                studentsHtml += '<tr><td colspan="5">Нет студентов</td></tr>';
-            }
-            studentsHtml += '</tbody></table>';
-            document.getElementById('students-list').innerHTML = studentsHtml;
-        } catch(err) { showError('Ошибка загрузки данных'); }
-    }
+                if (!res.ok) throw new Error(await res.text());
+                showSuccess('✅ Пароль изменён!');
+                document.getElementById('oldPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+            } catch(err) { showError('❌ ' + err.message); }
+        };
 
-    async function approveApp(appId) {
-        try {
-            await fetch(`/dean/approve-application/${appId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-            showSuccess('✅ Заявление одобрено!');
-            loadData();
-        } catch(err) { showError('❌ Ошибка при одобрении'); }
-    }
+        window.updateDeanSecurityQuestion = async function() {
+            const question = document.getElementById('securityQuestion').value;
+            const answer = document.getElementById('securityAnswer').value;
+            if (!question || !answer) { showError('❌ Заполните вопрос и ответ'); return; }
+            try {
+                const res = await fetch('/dean/security-question', {
+                    method: 'PUT',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token'), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, answer })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                showSuccess('✅ Секретный вопрос обновлён!');
+            } catch(err) { showError('❌ ' + err.message); }
+        };
 
-    async function transferStudent(studentId) {
-        const groupId = document.getElementById(`group-${studentId}`).value;
-        try {
-            await fetch(`/dean/transfer-student/${studentId}/to-group/${groupId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-            showSuccess('✅ Студент переведён!');
-            loadData();
-        } catch(err) { showError('❌ Ошибка при переводе'); }
-    }
+        window.onclick = function(event) {
+            const deanModal = document.getElementById('deanDataModal');
+            if (event.target == deanModal) closeDeanModal();
+            const studentModal = document.getElementById('studentDetailsModal');
+            if (event.target == studentModal) closeStudentDetailsModal();
+        };
 
-    async function expelStudent(studentId) {
-        if (!confirm('Отчислить студента?')) return;
-        try {
-            await fetch(`/dean/expel-student/${studentId}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-            showSuccess('✅ Студент отчислен!');
-            loadData();
-        } catch(err) { showError('❌ Ошибка при отчислении'); }
-    }
-
-    function openDataModal() { document.getElementById('dataModal').style.display = 'block'; }
-    function closeModal() { document.getElementById('dataModal').style.display = 'none'; }
-
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(tabId).classList.add('active');
-        event.target.classList.add('active');
-    }
-
-    async function updateProfile() {
-        const email = document.getElementById('editEmail').value;
-        const phone = document.getElementById('editPhone').value;
-
-        try {
-            const res = await fetch('/dean/update-profile', {
-                method: 'PUT',
-                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, phone })
-            });
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.message || 'Ошибка');
-            }
-            showSuccess('✅ Профиль обновлён!');
-            closeModal();
-        } catch(err) { showError('❌ ' + err.message); }
-    }
-
-    async function changePassword() {
-        const oldPassword = document.getElementById('oldPassword').value;
-        const newPassword = document.getElementById('newPassword').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-        if (newPassword !== confirmPassword) { showError('❌ Пароли не совпадают'); return; }
-
-        try {
-            const res = await fetch('/dean/change-password', {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ oldPassword, newPassword })
-            });
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.message || 'Ошибка');
-            }
-            showSuccess('✅ Пароль изменён!');
-            document.getElementById('oldPassword').value = '';
-            document.getElementById('newPassword').value = '';
-            document.getElementById('confirmPassword').value = '';
-        } catch(err) { showError('❌ ' + err.message); }
-    }
-
-    async function updateSecurityQuestion() {
-        const question = document.getElementById('securityQuestion').value;
-        const answer = document.getElementById('securityAnswer').value;
-        if (!question || !answer) { showError('❌ Заполните вопрос и ответ'); return; }
-
-        try {
-            const res = await fetch('/dean/security-question', {
-                method: 'PUT',
-                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, answer })
-            });
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.message || 'Ошибка');
-            }
-            showSuccess('✅ Секретный вопрос обновлён!');
-        } catch(err) { showError('❌ ' + err.message); }
-    }
-
-    function logout() { localStorage.removeItem('token'); window.location.href = 'index.html'; }
-
-    window.onclick = function(event) { if (event.target == document.getElementById('dataModal')) closeModal(); }
-
-    loadData();
+        // Запуск
+        loadGroups();
+        loadDeanApplications();
+        loadDeanStudents();
+    })();
 </script>
 </body>
 </html>

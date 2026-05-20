@@ -332,10 +332,6 @@ FROM courses c
 WHERE c.name IN ('Базы данных', 'Java-разработка', 'Web-технологии')
     ON CONFLICT DO NOTHING;
 
--- История переводов
-INSERT INTO student_group_history (student_id, from_group_id, to_group_id)
-SELECT id, NULL, 1 FROM students WHERE user_id = 2
-    ON CONFLICT DO NOTHING;
 
 -- Журнал
 INSERT INTO journal (user_id, action, entity_type, entity_id) VALUES
