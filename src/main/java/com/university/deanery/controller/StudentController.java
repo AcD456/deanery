@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import com.university.deanery.model.Group;
 
 import java.util.*;
 
@@ -182,47 +183,153 @@ public class StudentController {
         return transfers;
     }
 
+//    @GetMapping("/my-grades")
+//    public List<Map<String, Object>> getMyGrades(@RequestHeader("Authorization") String token) {
+//        User user = getUser(token);
+//        aclService.checkAccess(user, "profile", "READ");
+//
+//        Student student = studentService.getStudentByUserId(user.getId());
+//        Integer groupId = student.getGroupId();
+//
+//        @SuppressWarnings("unchecked")
+//        List<Object[]> results = entityManager.createNativeQuery(
+//                "SELECT c.name, cur.semester, t.full_name " +
+//                        "FROM curriculum cur " +
+//                        "JOIN courses c ON cur.course_id = c.id " +
+//                        "LEFT JOIN teachers t ON cur.teacher_id = t.id " +
+//                        "WHERE cur.group_id = ? " +
+//                        "AND c.name IS NOT NULL " +
+//                        "AND c.name != '' " +
+//                        "ORDER BY cur.semester ASC, c.name ASC"
+//        ).setParameter(1, groupId).getResultList();
+//
+//        List<Map<String, Object>> grades = new ArrayList<>();
+//        for (Object[] row : results) {
+//
+//            Map<String, Object> grade = new LinkedHashMap<>();
+//
+//            grade.put("courseName",
+//                    row[0] != null ? row[0].toString().trim() : "?");
+//
+//            grade.put("semester",
+//                    row[1] != null ? row[1].toString() : "?");
+//
+//            grade.put("teacherName",
+//                    row[2] != null ? row[2].toString() : "?");
+//
+//            grade.put("grade", "-");
+//
+//            grades.add(grade);
+//        }
+//
+//        return grades;
+//    }
+
     @GetMapping("/my-grades")
     public List<Map<String, Object>> getMyGrades(@RequestHeader("Authorization") String token) {
         User user = getUser(token);
         aclService.checkAccess(user, "profile", "READ");
 
         Student student = studentService.getStudentByUserId(user.getId());
-        Integer groupId = student.getGroupId();
 
         @SuppressWarnings("unchecked")
         List<Object[]> results = entityManager.createNativeQuery(
-                "SELECT c.name, cur.semester, t.full_name " +
-                        "FROM curriculum cur " +
-                        "JOIN courses c ON cur.course_id = c.id " +
-                        "LEFT JOIN teachers t ON cur.teacher_id = t.id " +
-                        "WHERE cur.group_id = ? " +
-                        "AND c.name IS NOT NULL " +
-                        "AND c.name != '' " +
-                        "ORDER BY cur.semester ASC, c.name ASC"
-        ).setParameter(1, groupId).getResultList();
+                "SELECT g.grade_value, g.grade_type, g.semester, g.comment, g.graded_at, " +
+                        "       c.name as course_name, t.full_name as teacher_name " +
+                        "FROM grades g " +
+                        "JOIN courses c ON g.course_id = c.id " +
+                        "LEFT JOIN teachers t ON g.teacher_id = t.id " +
+                        "WHERE g.student_id = ? " +
+                        "ORDER BY g.semester ASC, g.graded_at DESC"
+        ).setParameter(1, student.getId()).getResultList();
 
         List<Map<String, Object>> grades = new ArrayList<>();
         for (Object[] row : results) {
-
             Map<String, Object> grade = new LinkedHashMap<>();
-
-            grade.put("courseName",
-                    row[0] != null ? row[0].toString().trim() : "?");
-
-            grade.put("semester",
-                    row[1] != null ? row[1].toString() : "?");
-
-            grade.put("teacherName",
-                    row[2] != null ? row[2].toString() : "?");
-
-            grade.put("grade", "-");
-
+            grade.put("courseName", row[5] != null ? row[5].toString() : "—");
+            grade.put("gradeValue", row[0] != null ? row[0].toString() : "—");
+            grade.put("gradeType", getGradeTypeName(row[1] != null ? row[1].toString() : null));
+            grade.put("semester", row[2] != null ? row[2].toString() : "—");
+            grade.put("teacherName", row[6] != null ? row[6].toString() : "—");
+            grade.put("comment", row[3] != null ? row[3].toString() : "—");
+            grade.put("gradedAt", row[4] != null ? row[4].toString() : "—");
             grades.add(grade);
         }
 
         return grades;
     }
 
+    private String getGradeTypeName(String type) {
+        if (type == null) return "—";
+        switch(type) {
+            case "EXAM": return "Экзамен";
+            case "TEST": return "Зачёт";
+            case "COURSE_WORK": return "Курсовая работа";
+            case "EXAM_SESSION": return "Экзаменационная сессия";
+            default: return type;
+        }
+    }
 
+    @GetMapping("/my-group-students")
+    public List<Map<String, Object>> getMyGroupStudents(@RequestHeader("Authorization") String token) {
+        User user = getUser(token);
+        aclService.checkAccess(user, "students", "READ");
+
+        // Получаем текущего студента
+        Student currentStudent = studentService.getStudentByUserId(user.getId());
+        Integer myGroupId = currentStudent.getGroupId();
+
+        if (myGroupId == null) {
+            return new ArrayList<>();
+        }
+
+        // Получаем студентов только из моей группы
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = entityManager.createNativeQuery(
+                "SELECT s.full_name, s.status " +
+                        "FROM students s " +
+                        "WHERE s.group_id = ? " +
+                        "ORDER BY s.full_name"
+        ).setParameter(1, myGroupId).getResultList();
+
+        List<Map<String, Object>> students = new ArrayList<>();
+        for (Object[] row : results) {
+            Map<String, Object> student = new HashMap<>();
+            student.put("fullName", row[0] != null ? row[0].toString() : "—");
+            student.put("status", row[1] != null ? row[1].toString() : "—");
+            students.add(student);
+        }
+        return students;
+    }
+
+    @GetMapping("/my-group-info")
+    public Map<String, Object> getMyGroupInfo(@RequestHeader("Authorization") String token) {
+        User user = getUser(token);
+        aclService.checkAccess(user, "profile", "READ");
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Student student = studentService.getStudentByUserId(user.getId());
+            Integer groupId = student.getGroupId();
+            response.put("groupId", groupId);
+
+            if (groupId != null && groupId > 0) {
+                // Простой запрос через entityManager
+                String groupName = (String) entityManager.createNativeQuery(
+                        "SELECT name FROM groups WHERE id = ?"
+                ).setParameter(1, groupId).getSingleResult();
+
+                response.put("groupName", groupName != null ? groupName : "Не указана");
+            } else {
+                response.put("groupName", "Не указана");
+            }
+        } catch (Exception e) {
+            response.put("groupId", null);
+            response.put("groupName", "Ошибка загрузки");
+            response.put("error", e.getMessage());
+        }
+
+        return response;
+    }
 }

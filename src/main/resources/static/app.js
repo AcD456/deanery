@@ -506,9 +506,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const payload = JSON.parse(atob(token.split('.')[1]));
         document.getElementById('user-login').innerText = payload.userId || 'User';
         document.getElementById('user-role').innerText = payload.role || 'STUDENT';
-        loadProfile();
-        loadGroup();
-        loadCourses();
+        loadStudentProfile();
+        loadMyGroupStudents();
+        loadStudentCourses();
+        loadStudentTransfers();
+        loadStudentGrades();
     } else if (path.includes('applicant.html')) {
         loadApplications();
         const payload = JSON.parse(atob(token.split('.')[1]));
@@ -656,14 +658,22 @@ function switchStudentTab(tabId) {
 
 async function loadStudentProfile() {
     try {
-        const res = await fetch('/student/my-profile', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
-        const student = await res.json();
+        const profileRes = await fetch('/student/my-profile', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+        const student = await profileRes.json();
         currentStudentData = student;
+
+        // Получаем название группы
+        const groupRes = await fetch('/student/my-group-info', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+        const groupInfo = await groupRes.json();
 
         let html = `
             <table class="info-table">
                 <tr><th>ФИО</th><td>${student.fullName || '—'}</td></tr>
-                <tr><th>Группа</th><td>${student.groupId || '—'}</td></tr>
+                <tr><th>Группа</th><td>${groupInfo.groupName || '—'} (ID: ${student.groupId || '—'})</td></tr>
                 <tr><th>Статус</th><td><span class="badge ${student.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${student.status || '—'}</span></td></tr>
                 <tr><th>Email</th><td>${student.email || '—'}</td></tr>
                 <tr><th>Телефон</th><td>${student.phone || '—'}</td></tr>
@@ -672,18 +682,23 @@ async function loadStudentProfile() {
         document.getElementById('profile').innerHTML = html;
     } catch (err) {
         document.getElementById('profile').innerHTML = '<div class="error">Ошибка загрузки профиля</div>';
+        console.error(err);
     }
 }
 
 
-async function loadStudentGroup() {
+async function loadMyGroupStudents() {
     try {
-        const res = await fetch('/student/group/1', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const res = await fetch('/student/my-group-students', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
         const students = await res.json();
+
         if (students.length === 0) {
-            document.getElementById('group-students').innerHTML = '<p>Нет студентов в группе</p>';
+            document.getElementById('group-students').innerHTML = '<p>Нет студентов в вашей группе</p>';
             return;
         }
+
         let html = '<table class="data-table"><thead><tr><th>ФИО</th><th>Статус</th></tr></thead><tbody>';
         students.forEach(s => {
             html += `<tr>
@@ -695,6 +710,7 @@ async function loadStudentGroup() {
         document.getElementById('group-students').innerHTML = html;
     } catch (err) {
         document.getElementById('group-students').innerHTML = '<div class="error">Ошибка загрузки группы</div>';
+        console.error(err);
     }
 }
 
@@ -774,14 +790,19 @@ async function loadStudentTransfers() {
 
 
 async function loadStudentGrades() {
-
-    console.log("NEW VERSION LOADED");
+    console.log("Loading student grades...");
 
     try {
-        const res = await fetch('/student/my-grades', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } });
+        const res = await fetch('/student/my-grades', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+        });
+
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
         let grades = await res.json();
-
-
+        console.log('Grades received:', grades);
 
         const container = document.getElementById('grades-list');
         if (!container) return;
@@ -791,21 +812,48 @@ async function loadStudentGrades() {
             return;
         }
 
-        let html = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Семестр</th><th>Преподаватель</th><th>Оценка</th></tr></thead><tbody>';
+        let html = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Дисциплина</th>
+                        <th>Семестр</th>
+                        <th>Преподаватель</th>
+                        <th>Оценка</th>
+                        <th>Тип оценки</th>
+                        <th>Комментарий</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
         grades.forEach(g => {
-            html += `<tr>
-                <td>${g.courseName || '—'}</td>
-                <td>${g.semester || '—'}</td>
-                <td>${g.teacherName || '—'}</td>
-                <td><span class="badge badge-grade">${g.grade || '—'}</span></td>
-            </tr>`;
+            // Используем gradeValue вместо grade
+            const gradeDisplay = g.gradeValue && g.gradeValue !== 'null' ?
+                `<span class="badge badge-grade">${g.gradeValue}</span>` :
+                '<span style="color:gray;">—</span>';
+
+            html += `
+                <tr>
+                    <td>${g.courseName || '—'}</td>
+                    <td>${g.semester || '—'}</td>
+                    <td>${g.teacherName || '—'}</td>
+                    <td>${gradeDisplay}</td>
+                    <td>${g.gradeType || '—'}</td>
+                    <td>${g.comment || '—'}</td>
+                </tr>
+            `;
         });
+
         html += '</tbody></table>';
         container.innerHTML = html;
+
     } catch (err) {
         console.error('Grades error:', err);
         const container = document.getElementById('grades-list');
-        if (container) container.innerHTML = '<div class="error">Ошибка загрузки успеваемости</div>';
+        if (container) {
+            container.innerHTML = '<div class="error">Ошибка загрузки успеваемости: ' + err.message + '</div>';
+        }
     }
 }
 

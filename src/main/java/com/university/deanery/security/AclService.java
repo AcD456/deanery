@@ -25,7 +25,7 @@ public class AclService {
                     "profile", List.of("READ", "UPDATE")
             ),
             "TEACHER", Map.of(
-                    "students", List.of("READ"),
+                    "students", List.of("READ", "UPDATE"),
                     "profile", List.of("READ", "UPDATE")
             ),
             "ADMIN", Map.of(

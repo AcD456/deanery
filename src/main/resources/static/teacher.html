@@ -29,20 +29,69 @@
 
     <div class="card">
         <div class="section">
-            <h3>📚 Мои дисциплины</h3>
-            <div id="courses-list"></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="section">
-            <h3>👥 Мои студенты</h3>
-            <div id="students-list"></div>
+            <h3>📚 Выставление и редактирование оценок</h3>
+            <div class="filter-bar">
+                <select id="courseFilter" onchange="loadGrades()">
+                    <option value="">-- Все дисциплины --</option>
+                </select>
+                <input type="text" id="studentSearch" placeholder="🔍 Поиск по ФИО студента..." onkeyup="loadGrades()">
+                <button onclick="loadGrades()">Поиск</button>
+                <button onclick="resetFilters()">Сбросить</button>
+            </div>
+            <div id="grades-table-container"></div>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно -->
+<!-- Модальное окно для редактирования оценки -->
+<div id="gradeModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>✏️ Выставление/редактирование оценки</h3>
+            <span class="close" onclick="closeGradeModal()">&times;</span>
+        </div>
+        <div id="grade-modal-content">
+            <div class="form-group">
+                <label>Студент:</label>
+                <input type="text" id="modalStudentName" readonly>
+            </div>
+            <div class="form-group">
+                <label>Дисциплина:</label>
+                <input type="text" id="modalCourseName" readonly>
+            </div>
+            <div class="form-group">
+                <label>Семестр:</label>
+                <input type="text" id="modalSemester" readonly>
+            </div>
+            <div class="form-group">
+                <label>Тип оценки:</label>
+                <select id="modalGradeType">
+                    <option value="EXAM">Экзамен</option>
+                    <option value="TEST">Зачёт</option>
+                    <option value="COURSE_WORK">Курсовая работа</option>
+                    <option value="EXAM_SESSION">Экзаменационная сессия</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Оценка:</label>
+                <select id="modalGradeValue">
+                    <option value="">-- Выберите --</option>
+                    <option value="5">5 (Отлично)</option>
+                    <option value="4">4 (Хорошо)</option>
+                    <option value="3">3 (Удовлетворительно)</option>
+                    <option value="2">2 (Неудовлетворительно)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Комментарий:</label>
+                <textarea id="modalComment" rows="3" placeholder="Введите комментарий..."></textarea>
+            </div>
+            <button class="btn-save" onclick="saveGrade()">💾 Сохранить оценку</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для управления данными -->
 <div id="dataModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -77,6 +126,9 @@
 
 <script>
     let token = localStorage.getItem('token');
+    let currentGradeId = null;
+    let coursesList = [];
+
     if (!token) window.location.href = 'index.html';
 
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -85,32 +137,210 @@
 
     async function loadTeacherData() {
         try {
-            const profileRes = await fetch('/teacher/my-profile', { headers: { 'Authorization': 'Bearer ' + token } });
+            const profileRes = await fetch('/teacher/my-profile', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
             const teacher = await profileRes.json();
-            document.getElementById('profile-info').innerHTML = `<p><strong>ФИО:</strong> ${teacher.fullName || '—'}</p><p><strong>Должность:</strong> ${teacher.position || '—'}</p><p><strong>Учёная степень:</strong> ${teacher.academicDegree || '—'}</p><p><strong>Телефон:</strong> ${teacher.phone || '—'}</p>`;
+            document.getElementById('profile-info').innerHTML = `
+                <p><strong>ФИО:</strong> ${teacher.fullName || '—'}</p>
+                <p><strong>Должность:</strong> ${teacher.position || '—'}</p>
+                <p><strong>Учёная степень:</strong> ${teacher.academicDegree || '—'}</p>
+                <p><strong>Телефон:</strong> ${teacher.phone || '—'}</p>
+            `;
 
-            const coursesRes = await fetch('/teacher/my-courses', { headers: { 'Authorization': 'Bearer ' + token } });
-            const courses = await coursesRes.json();
-            let coursesHtml = '<table class="data-table"><thead><tr><th>Дисциплина</th><th>Часы</th><th>Семестр</th></tr></thead><tbody>';
-            if (courses && courses.length > 0) {
-                courses.forEach(c => { coursesHtml += `<tr><td>${c.name || '—'}</td><td>${c.hours || '—'}</td><td>${c.semester || '—'}</td></tr>`; });
-            } else {
-                coursesHtml += '<tr><td colspan="3">Нет дисциплин</td></tr>';
-            }
-            coursesHtml += '</tbody></table>';
-            document.getElementById('courses-list').innerHTML = coursesHtml;
+            // Загружаем курсы для фильтра
+            const coursesRes = await fetch('/teacher/my-courses-with-semesters', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            coursesList = await coursesRes.json();
 
-            const studentsRes = await fetch('/teacher/my-students', { headers: { 'Authorization': 'Bearer ' + token } });
-            const students = await studentsRes.json();
-            let studentsHtml = '<table class="data-table"><thead><tr><th>ФИО</th><th>Группа</th><th>Статус</th></tr></thead><tbody>';
-            if (students && students.length > 0) {
-                students.forEach(s => { studentsHtml += `<tr><td>${s.fullName || '—'}</td><td>${s.groupName || '—'}</td><td>${s.status || '—'}</td></tr>`; });
-            } else {
-                studentsHtml += '<tr><td colspan="3">Нет студентов</td></tr>';
+            const courseFilter = document.getElementById('courseFilter');
+            coursesList.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.id;
+                option.textContent = `${c.name} (семестр ${c.semester})`;
+                courseFilter.appendChild(option);
+            });
+
+            // Загружаем оценки
+            await loadGrades();
+
+        } catch(err) {
+            showError('Ошибка загрузки данных: ' + err.message);
+            console.error(err);
+        }
+    }
+
+    async function loadGrades() {
+        const courseId = document.getElementById('courseFilter').value;
+        const studentSearch = document.getElementById('studentSearch').value;
+
+        let url = '/teacher/my-grades?';
+        if (courseId) url += `courseId=${courseId}&`;
+
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+            let grades = await res.json();
+
+            // Фильтрация по ФИО студента на клиенте
+            if (studentSearch && studentSearch.trim() !== '') {
+                const searchLower = studentSearch.toLowerCase().trim();
+                grades = grades.filter(grade =>
+                    grade.studentName && grade.studentName.toLowerCase().includes(searchLower)
+                );
             }
-            studentsHtml += '</tbody></table>';
-            document.getElementById('students-list').innerHTML = studentsHtml;
-        } catch(err) { showError('Ошибка загрузки данных'); }
+
+            renderGradesTable(grades);
+        } catch(err) {
+            showError('Ошибка загрузки оценок: ' + err.message);
+        }
+    }
+
+    function renderGradesTable(grades) {
+        if (!grades || grades.length === 0) {
+            document.getElementById('grades-table-container').innerHTML =
+                '<p style="text-align:center; padding:20px;">Нет данных об оценках</p>';
+            return;
+        }
+
+        let html = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Студент</th>
+                        <th>Дисциплина</th>
+                        <th>Семестр</th>
+                        <th>Тип</th>
+                        <th>Оценка</th>
+                        <th>Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        grades.forEach(grade => {
+            const gradeDisplay = grade.gradeValue ?
+                `<span class="badge badge-grade">${grade.gradeValue}</span>` :
+                '<span style="color:gray;">—</span>';
+
+            html += `
+                <tr>
+                    <td>${grade.studentName || '—'}</td>
+                    <td>${grade.courseName || '—'}</td>
+                    <td>${grade.semester || '—'}</td>
+                    <td>${getGradeTypeName(grade.gradeType)}</td>
+                    <td>${gradeDisplay}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="openGradeModal(${grade.id || 'null'}, ${grade.studentId}, ${grade.courseId}, '${grade.studentName}', '${grade.courseName}', ${grade.semester}, '${grade.gradeType}', ${grade.gradeValue || 'null'}, '${grade.comment || ''}')">
+                            ✏️ Редактировать
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        document.getElementById('grades-table-container').innerHTML = html;
+    }
+
+    function getGradeTypeName(type) {
+        const types = {
+            'EXAM': 'Экзамен',
+            'TEST': 'Зачёт',
+            'COURSE_WORK': 'Курсовая работа',
+            'EXAM_SESSION': 'Экзаменационная сессия'
+        };
+        return types[type] || type || '—';
+    }
+
+    function openGradeModal(gradeId, studentId, courseId, studentName, courseName, semester, gradeType, gradeValue, comment) {
+        currentGradeId = gradeId;
+
+        document.getElementById('modalStudentName').value = studentName;
+        document.getElementById('modalCourseName').value = courseName;
+        document.getElementById('modalSemester').value = semester;
+
+        if (gradeType) {
+            document.getElementById('modalGradeType').value = gradeType;
+        } else {
+            document.getElementById('modalGradeType').value = 'EXAM';
+        }
+
+        if (gradeValue) {
+            document.getElementById('modalGradeValue').value = gradeValue;
+        } else {
+            document.getElementById('modalGradeValue').value = '';
+        }
+
+        document.getElementById('modalComment').value = comment || '';
+
+        // Сохраняем ID для отправки на сервер
+        window.currentStudentId = studentId;
+        window.currentCourseId = courseId;
+        window.currentSemester = semester;
+
+        document.getElementById('gradeModal').style.display = 'block';
+    }
+
+    async function saveGrade() {
+        const gradeValue = document.getElementById('modalGradeValue').value;
+        const gradeType = document.getElementById('modalGradeType').value;
+        const comment = document.getElementById('modalComment').value;
+
+        if (!gradeValue) {
+            showError('❌ Выберите оценку');
+            return;
+        }
+
+        const saveBtn = event.target;
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = '⏳ Сохранение...';
+        saveBtn.disabled = true;
+
+        try {
+            const res = await fetch('/teacher/set-grade', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    studentId: window.currentStudentId,
+                    courseId: window.currentCourseId,
+                    gradeValue: parseInt(gradeValue),
+                    gradeType: gradeType,
+                    semester: parseInt(window.currentSemester),
+                    comment: comment
+                })
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка');
+            }
+
+            const data = await res.json();
+            showSuccess('✅ ' + data.message);
+            closeGradeModal();
+            await loadGrades();
+
+        } catch(err) {
+            showError('❌ ' + err.message);
+        } finally {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
+    function resetFilters() {
+        document.getElementById('courseFilter').value = '';
+        document.getElementById('studentSearch').value = '';
+        loadGrades();
+    }
+
+    function closeGradeModal() {
+        document.getElementById('gradeModal').style.display = 'none';
+        currentGradeId = null;
     }
 
     function openDataModal() { document.getElementById('dataModal').style.display = 'block'; }
@@ -120,7 +350,7 @@
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
-        event.target.classList.add('active');
+        if (event && event.target) event.target.classList.add('active');
     }
 
     async function updateProfile() {
@@ -189,7 +419,10 @@
 
     function logout() { localStorage.removeItem('token'); window.location.href = 'index.html'; }
 
-    window.onclick = function(event) { if (event.target == document.getElementById('dataModal')) closeModal(); }
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('dataModal')) closeModal();
+        if (event.target == document.getElementById('gradeModal')) closeGradeModal();
+    }
 
     loadTeacherData();
 </script>
