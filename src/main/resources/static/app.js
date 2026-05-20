@@ -692,7 +692,18 @@ async function loadMyGroupStudents() {
         const res = await fetch('/student/my-group-students', {
             headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
         });
+
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
         const students = await res.json();
+
+        if (!students || !Array.isArray(students)) {
+            console.warn('No students or invalid response:', students);
+            document.getElementById('group-students').innerHTML = '<p>Нет студентов в вашей группе</p>';
+            return;
+        }
 
         if (students.length === 0) {
             document.getElementById('group-students').innerHTML = '<p>Нет студентов в вашей группе</p>';
@@ -701,16 +712,18 @@ async function loadMyGroupStudents() {
 
         let html = '<table class="data-table"><thead><tr><th>ФИО</th><th>Статус</th></tr></thead><tbody>';
         students.forEach(s => {
-            html += `<tr>
-                <td>${s.fullName || '—'}</td>
-                <td><span class="badge ${s.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${s.status || '—'}</span></td>
-            </tr>`;
+            html += `
+                <tr>
+                    <td>${s.fullName || '—'}</td>
+                    <td><span class="badge ${s.status === 'ACTIVE' ? 'badge-active' : 'badge-expelled'}">${s.status || '—'}</span></td>
+                </tr>
+            `;
         });
         html += '</tbody></table>';
         document.getElementById('group-students').innerHTML = html;
     } catch (err) {
-        document.getElementById('group-students').innerHTML = '<div class="error">Ошибка загрузки группы</div>';
-        console.error(err);
+        console.error('Error loading group students:', err);
+        document.getElementById('group-students').innerHTML = '<div class="error">Ошибка загрузки группы: ' + err.message + '</div>';
     }
 }
 
@@ -807,7 +820,7 @@ async function loadStudentGrades() {
         const container = document.getElementById('grades-list');
         if (!container) return;
 
-        if (!grades || grades.length === 0) {
+        if (!grades || !Array.isArray(grades) || grades.length === 0) {
             container.innerHTML = '<p>Нет данных об успеваемости</p>';
             return;
         }
@@ -828,7 +841,6 @@ async function loadStudentGrades() {
         `;
 
         grades.forEach(g => {
-            // Используем gradeValue вместо grade
             const gradeDisplay = g.gradeValue && g.gradeValue !== 'null' ?
                 `<span class="badge badge-grade">${g.gradeValue}</span>` :
                 '<span style="color:gray;">—</span>';

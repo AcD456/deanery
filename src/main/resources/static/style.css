@@ -605,3 +605,64 @@ textarea:focus {
     outline: none;
     border-color: #667eea;
 }
+
+
+.modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.create-user-form {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.form-section {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.form-section h4 {
+    color: #667eea;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.filter-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filter-bar select, .filter-bar input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.filter-bar button {
+    padding: 8px 16px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.filter-bar button:hover {
+    background: #2980b9;
+}
+.journal-table {
+    font-size: 14px;
+}
+.journal-table td {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.journal-table td:hover {
+    white-space: normal;
+    word-wrap: break-word;
+}

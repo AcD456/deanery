@@ -21,19 +21,127 @@
 <div class="container">
     <div class="card">
         <div class="section">
+            <h3>➕ Создание нового пользователя</h3>
+            <button class="btn btn-primary" onclick="openCreateUserModal()">➕ Создать пользователя</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section">
             <h3>👥 Управление пользователями</h3>
             <div id="admin-error" class="error hidden"></div>
             <div id="admin-success" class="success hidden"></div>
-            <table id="users-table">
-                <thead>
-                <tr><th>ID</th><th>Логин</th><th>Роль</th><th>Действие</th></tr>
-                </thead>
-                <tbody id="users-list"></tbody>
-            </table>
+            <div id="users-table-container"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section">
+            <h3>📋 Журнал действий</h3>
+
+            <div class="filter-bar">
+                <select id="filterUser">
+                    <option value="">Все пользователи</option>
+                </select>
+                <select id="filterAction">
+                    <option value="">Все действия</option>
+                </select>
+                <input type="date" id="filterStartDate" placeholder="Дата от">
+                <input type="date" id="filterEndDate" placeholder="Дата до">
+                <button onclick="loadJournal()">Поиск</button>
+                <button onclick="resetJournalFilters()">Сбросить</button>
+            </div>
+
+            <div id="journal-table-container"></div>
         </div>
     </div>
 </div>
-<script src="toast.js"></script>
+
+<!-- Модальное окно для создания пользователя -->
+<div id="createUserModal" class="modal">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h3>➕ Создание нового пользователя</h3>
+            <span class="close" onclick="closeCreateUserModal()">&times;</span>
+        </div>
+
+        <div class="create-user-form">
+            <div class="form-section">
+                <h4>🔐 Основная информация</h4>
+                <div class="form-group">
+                    <label>Логин *</label>
+                    <input type="text" id="newLogin" placeholder="Введите логин">
+                </div>
+                <div class="form-group">
+                    <label>Пароль *</label>
+                    <input type="password" id="newPassword" placeholder="Введите пароль">
+                </div>
+                <div class="form-group">
+                    <label>Роль *</label>
+                    <select id="newRole" onchange="toggleRoleFields()">
+                        <option value="STUDENT">Студент</option>
+                        <option value="TEACHER">Преподаватель</option>
+                        <option value="DEAN">Декан</option>
+                        <option value="APPLICANT">Абитуриент</option>
+                        <option value="ADMIN">Администратор</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h4>👤 Личная информация</h4>
+                <div class="form-group">
+                    <label>ФИО</label>
+                    <input type="text" id="newFullName" placeholder="Введите ФИО">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="newEmail" placeholder="Email">
+                </div>
+                <div class="form-group">
+                    <label>Телефон</label>
+                    <input type="text" id="newPhone" placeholder="Телефон">
+                </div>
+            </div>
+
+            <!-- Поля для студента -->
+            <div id="studentFields" class="form-section" style="display: none;">
+                <h4>📚 Учебная информация</h4>
+                <div class="form-group">
+                    <label>Группа</label>
+                    <select id="newGroupId">
+                        <option value="">Выберите группу</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Поля для преподавателя -->
+            <div id="teacherFields" class="form-section" style="display: none;">
+                <h4>👨‍🏫 Профессиональная информация</h4>
+                <div class="form-group">
+                    <label>Должность</label>
+                    <input type="text" id="newPosition" placeholder="Например: Доцент, Профессор">
+                </div>
+                <div class="form-group">
+                    <label>Учёная степень</label>
+                    <input type="text" id="newAcademicDegree" placeholder="Например: Кандидат наук">
+                </div>
+            </div>
+
+            <!-- Поля для абитуриента -->
+            <div id="applicantFields" class="form-section" style="display: none;">
+                <h4>📝 Информация о поступлении</h4>
+                <div class="form-group">
+                    <label>Программа обучения (ID)</label>
+                    <input type="number" id="newProgramId" placeholder="ID программы (101, 102, 103...)">
+                </div>
+            </div>
+
+            <button class="btn-save" onclick="createUser()" style="margin-top: 20px;">💾 Создать пользователя</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let token = localStorage.getItem('token');
     if (!token) window.location.href = 'index.html';
@@ -44,11 +152,37 @@
 
     async function loadUsers() {
         try {
-            const res = await fetch('/admin/users', { headers: { 'Authorization': 'Bearer ' + token } });
+            const res = await fetch('/admin/users', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+
             const users = await res.json();
-            let html = '<table class="data-table"><thead><tr><th>ID</th><th>Логин</th><th>Роль</th><th>Действие</th></tr></thead><tbody>';
+
+            if (!Array.isArray(users)) {
+                console.error('Users is not an array:', users);
+                return;
+            }
+
+            let html = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Логин</th>
+                        <th>Роль</th>
+                        <th>Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
             users.forEach(u => {
-                html += `<tr>
+                html += `
+                <tr>
                     <td>${u.id}</td>
                     <td>${u.login}</td>
                     <td>
@@ -61,12 +195,52 @@
                             <option value="INACTIVE" ${u.role === 'INACTIVE' ? 'selected' : ''}>Неактивен</option>
                         </select>
                     </td>
-                    <td><button class="btn btn-primary btn-sm" onclick="changeRole(${u.id})">Сохранить</button></td>
-                </tr>`;
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="changeRole(${u.id})">Сохранить</button>
+                    </td>
+                </tr>
+            `;
             });
+
             html += '</tbody></table>';
-            document.getElementById('users-list').innerHTML = html;
-        } catch(err) { showError('❌ Ошибка загрузки пользователей'); }
+            document.getElementById('users-table-container').innerHTML = html;
+
+            // Загружаем группы для select
+            await loadGroups();
+
+        } catch(err) {
+            showError('❌ Ошибка загрузки пользователей: ' + err.message);
+            console.error(err);
+        }
+    }
+
+    async function loadGroups() {
+        try {
+            const res = await fetch('/admin/groups-list', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            if (!res.ok) {
+                console.error('Failed to load groups:', res.status);
+                return;
+            }
+
+            const groups = await res.json();
+            const select = document.getElementById('newGroupId');
+            if (select && Array.isArray(groups)) {
+                select.innerHTML = '<option value="">Выберите группу</option>';
+                groups.forEach(g => {
+                    const option = document.createElement('option');
+                    option.value = g.id;
+                    option.textContent = g.name;
+                    select.appendChild(option);
+                });
+            } else if (select && !Array.isArray(groups)) {
+                console.error('Groups is not an array:', groups);
+            }
+        } catch(err) {
+            console.error('Ошибка загрузки групп:', err);
+        }
     }
 
     async function changeRole(userId) {
@@ -79,12 +253,270 @@
             if (!res.ok) throw new Error(await res.text());
             showSuccess('✅ Роль изменена!');
             loadUsers();
-        } catch(err) { showError('❌ ' + err.message); }
+        } catch(err) {
+            showError('❌ ' + err.message);
+        }
     }
 
-    function showSuccess(msg) { showToast(msg, 'success'); }
-    function showError(msg) { showToast(msg, 'error'); }
-    function logout() { localStorage.removeItem('token'); window.location.href = 'index.html'; }
+    function openCreateUserModal() {
+        document.getElementById('createUserModal').style.display = 'block';
+        // Сбрасываем форму
+        document.getElementById('newLogin').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('newFullName').value = '';
+        document.getElementById('newEmail').value = '';
+        document.getElementById('newPhone').value = '';
+        document.getElementById('newPosition').value = '';
+        document.getElementById('newAcademicDegree').value = '';
+        document.getElementById('newProgramId').value = '';
+        toggleRoleFields();
+    }
+
+    function closeCreateUserModal() {
+        document.getElementById('createUserModal').style.display = 'none';
+    }
+
+    function toggleRoleFields() {
+        const role = document.getElementById('newRole').value;
+
+        document.getElementById('studentFields').style.display = 'none';
+        document.getElementById('teacherFields').style.display = 'none';
+        document.getElementById('applicantFields').style.display = 'none';
+
+        if (role === 'STUDENT') {
+            document.getElementById('studentFields').style.display = 'block';
+        } else if (role === 'TEACHER') {
+            document.getElementById('teacherFields').style.display = 'block';
+        } else if (role === 'APPLICANT') {
+            document.getElementById('applicantFields').style.display = 'block';
+        }
+    }
+
+    async function createUser() {
+        const login = document.getElementById('newLogin').value;
+        const password = document.getElementById('newPassword').value;
+        const role = document.getElementById('newRole').value;
+        const fullName = document.getElementById('newFullName').value;
+        const email = document.getElementById('newEmail').value;
+        const phone = document.getElementById('newPhone').value;
+
+        if (!login || !password) {
+            showError('❌ Логин и пароль обязательны для заполнения');
+            return;
+        }
+
+        const userData = {
+            login: login,
+            password: password,
+            role: role,
+            fullName: fullName,
+            email: email,
+            phone: phone
+        };
+
+        // Добавляем специфические поля
+        if (role === 'STUDENT') {
+            userData.groupId = document.getElementById('newGroupId').value;
+        } else if (role === 'TEACHER') {
+            userData.position = document.getElementById('newPosition').value;
+            userData.academicDegree = document.getElementById('newAcademicDegree').value;
+        } else if (role === 'APPLICANT') {
+            userData.programId = document.getElementById('newProgramId').value;
+        }
+
+        const saveBtn = event.target;
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = '⏳ Создание...';
+        saveBtn.disabled = true;
+
+        try {
+            const res = await fetch('/admin/create-user', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(userData)
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Ошибка создания пользователя');
+            }
+
+            const result = await res.json();
+            showSuccess(`✅ ${result.message}. ${result.profileType} создан.`);
+            closeCreateUserModal();
+            loadUsers();
+
+        } catch(err) {
+            showError('❌ ' + err.message);
+        } finally {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+        }
+    }
+
+    function showSuccess(msg) {
+        showToast(msg, 'success');
+    }
+
+    function showError(msg) {
+        showToast(msg, 'error');
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        window.location.href = 'index.html';
+    }
+
+    // Закрытие модального окна при клике вне его
+    window.onclick = function(event) {
+        const modal = document.getElementById('createUserModal');
+        if (event.target == modal) {
+            closeCreateUserModal();
+        }
+    }
+
+    async function loadJournal() {
+        const userId = document.getElementById('filterUser').value;
+        const action = document.getElementById('filterAction').value;
+        const startDate = document.getElementById('filterStartDate').value;
+        const endDate = document.getElementById('filterEndDate').value;
+
+        let url = '/admin/journal?';
+        if (userId) url += `userId=${userId}&`;
+        if (action) url += `action=${action}&`;
+        if (startDate) url += `startDate=${startDate}&`;
+        if (endDate) url += `endDate=${endDate}&`;
+
+        try {
+            const res = await fetch(url, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const entries = await res.json();
+
+            if (!entries || entries.length === 0) {
+                document.getElementById('journal-table-container').innerHTML =
+                    '<p style="text-align:center; padding:20px;">Нет записей в журнале</p>';
+                return;
+            }
+
+            let html = `
+            <table class="data-table journal-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Пользователь</th>
+                        <th>Действие</th>
+                        <th>Тип</th>
+                        <th>ID сущности</th>
+                        <th>Было</th>
+                        <th>Стало</th>
+                        <th>Дата/время</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+            entries.forEach(entry => {
+                const actionDisplay = getActionDisplay(entry.action);
+                html += `
+                <tr>
+                    <td>${entry.id}</td>
+                    <td>${entry.userLogin} (${entry.userId})</td>
+                    <td>${actionDisplay}</td>
+                    <td>${entry.entityType || '—'}</td>
+                    <td>${entry.entityId || '—'}</td>
+                    <td>${entry.oldValue || '—'}</td>
+                    <td>${entry.newValue || '—'}</td>
+                    <td>${formatDateTime(entry.createdAt)}</td>
+                </tr>
+            `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('journal-table-container').innerHTML = html;
+
+        } catch(err) {
+            showError('Ошибка загрузки журнала: ' + err.message);
+        }
+    }
+
+    function getActionDisplay(action) {
+        const actions = {
+            'CREATE_USER': '➕ Создание пользователя',
+            'CHANGE_ROLE': '🔄 Изменение роли',
+            'UPDATE_PROFILE': '✏️ Обновление профиля',
+            'CHANGE_PASSWORD': '🔐 Смена пароля',
+            'UPDATE_SECURITY_QUESTION': '❓ Обновление секретного вопроса',
+            'APPROVE_APPLICATION': '✅ Одобрение заявления',
+            'EXPEL_STUDENT': '📤 Отчисление студента',
+            'TRANSFER_STUDENT': '🔄 Перевод студента',
+            'SET_GRADE': '📝 Выставление оценки',
+            'UPDATE_GRADE': '✏️ Изменение оценки',
+            'DELETE_GRADE': '🗑️ Удаление оценки'
+        };
+        return actions[action] || action;
+    }
+
+    function formatDateTime(dateTimeStr) {
+        if (!dateTimeStr) return '—';
+        try {
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } catch(e) {
+            return dateTimeStr;
+        }
+    }
+
+    async function loadJournalFilters() {
+        try {
+            // Загружаем пользователей для фильтра
+            const usersRes = await fetch('/admin/users', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const users = await usersRes.json();
+            const userSelect = document.getElementById('filterUser');
+            users.forEach(u => {
+                const option = document.createElement('option');
+                option.value = u.id;
+                option.textContent = `${u.login} (${u.role})`;
+                userSelect.appendChild(option);
+            });
+
+            // Загружаем действия для фильтра
+            const actionsRes = await fetch('/admin/journal/actions', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const actions = await actionsRes.json();
+            const actionSelect = document.getElementById('filterAction');
+            actions.forEach(a => {
+                const option = document.createElement('option');
+                option.value = a;
+                option.textContent = getActionDisplay(a);
+                actionSelect.appendChild(option);
+            });
+
+        } catch(err) {
+            console.error('Ошибка загрузки фильтров:', err);
+        }
+    }
+
+    function resetJournalFilters() {
+        document.getElementById('filterUser').value = '';
+        document.getElementById('filterAction').value = '';
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value = '';
+        loadJournal();
+    }
 
     loadUsers();
 </script>
